@@ -2,7 +2,7 @@
 
 Pick **any year, any Grand Prix, any session** and find out **which driver — and which team — is fastest through each turn/corner**.
 
-Unlike the name suggests, this is **not limited to free practice**. Both engines below work for **every available session type**:
+Not limited to free practice — works for **every available session type**:
 
 - Practice 1, Practice 2, Practice 3
 - Qualifying
@@ -11,76 +11,65 @@ Unlike the name suggests, this is **not limited to free practice**. Both engines
 
 > **Only the session you select is analyzed.** One session in → one turn-by-turn report out.
 
-## Two engines — which is better?
+## Run it on your local machine
 
-| | 🌐 Website (`index.html` + `app.js`) | 🐍 FastF1 analyzer (`fastf1/`) |
-|---|---|---|
-| Data source | OpenF1 API (2023 → present) | FastF1 / official F1 live timing (2018 → present) |
-| Telemetry | Speed @ ~3.7 Hz | Speed, throttle, brake, gear @ higher rate |
-| Corner mapping | Official apexes mapped to lap progress (±1.2% window) | Official apexes at exact track distances (±50 m window) |
-| Runs where | Any browser, zero install | Any machine with Python 3.10+ |
-| Hosting | Free static hosting (GitHub Pages / Netlify / Vercel) | Local machine / any Python host |
-| Storage | None — all in-browser, live on Analyze | None — temp cache auto-deleted on exit |
-| Best for | Sharing, quick answers, race-weekend use | Deep analysis, research, pre-2023 seasons |
+No install, no build, no backend. Just serve the folder and open it in a browser:
 
-**Verdict: keep both.** The website is the better *product* (no install, no backend, free hosting, live on page load — exactly matching the zero-storage goal). FastF1 is the better *measurement instrument* (richer telemetry, exact corner distances, seasons back to 2018). Both implement the same analysis contract: best lap per driver → corner windows ranked by average speed → team scores as the mean of their drivers.
+**Option A — Python (you already have it):**
 
-## Engine 1 — Website (live, zero storage)
-
-To save space, this app **stores no F1 data at all** — no CSVs, no databases, no downloaded files:
-
-1. When you press **Analyze**, the page fetches everything **live from the [OpenF1 API](https://openf1.org)** (`meetings → sessions → drivers → laps → car_data → session_result`).
-2. Official corner geometry comes live from the meeting's `circuit_info_url` (MultiViewer).
-3. All processing (lap-distance resampling, corner ranking, team aggregation, track map, charts) happens **in your browser, on page load**.
-4. Close the tab and nothing remains — run it again any time for fresh live data.
-
-Open the app with any static server (or just open `index.html`), e.g.:
-
-```sh
-npx serve .
-# or
-python -m http.server
+```powershell
+cd C:\Users\Parth\Desktop\Github\F1-Practice-session-analysis
+python -m http.server 8000
 ```
 
-Then deploy anywhere static sites live (GitHub Pages, Netlify, Vercel — no backend needed).
+**Option B — Node:**
+
+```powershell
+cd C:\Users\Parth\Desktop\Github\F1-Practice-session-analysis
+npx serve .
+```
+
+Then open **http://localhost:8000** (or the address `serve` prints) in Chrome/Edge/Firefox.
+
+> Why a server and not double-clicking `index.html`? Browsers restrict `file://`
+> pages; a tiny local server avoids any issue. No F1 data is ever stored — the
+> page just needs `http://` to run properly.
+
+**Using it:**
+
+1. Pick **Year** → **Grand Prix** → **Session** (all lists load live from the API).
+2. Optionally narrow to Top 10 / Top 5 fastest laps (faster, fewer API requests).
+3. Press **Analyze selected session** and watch the progress bar.
+4. You get: session summary, track map coloured by fastest team per segment,
+   turn-by-turn table, per-driver table, per-team table, speed traces, and the
+   official classification.
+
+## Zero-storage, live-data design
+
+To save space, this app **stores no F1 data at all** — no CSVs, no databases, no downloads:
+
+1. On **Analyze**, the page fetches everything **live from the [OpenF1 API](https://openf1.org)** (`meetings → sessions → drivers → laps → car_data → session_result`).
+2. Official corner geometry comes live from the meeting's `circuit_info_url` (MultiViewer).
+3. All processing happens **in your browser**; close the tab and nothing remains.
+
+Deploy anywhere static sites live (GitHub Pages, Netlify, Vercel — no backend needed).
 
 ## How the analysis works
 
-1. **Best lap per driver** — the fastest non-pit-out lap of the selected session (from the `laps` endpoint).
-2. **Best-lap telemetry** — `car_data` (speed @ ~3.7 Hz) for each driver's best-lap window.
-3. **Speed vs lap distance** — distance is integrated from speed-over-time and each lap is resampled to 1000 progress bins, so drivers are compared at the same point on track.
+1. **Best lap per driver** — fastest non-pit-out lap of the selected session.
+2. **Best-lap telemetry** — `car_data` speed (~3.7 Hz) for each driver's best-lap window.
+3. **Speed vs lap distance** — distance integrated from speed-over-time, resampled to 1000 progress bins, so drivers are compared at the same point on track.
 4. **Corner apexes** — official apex coordinates mapped onto the lap (fallback: auto-detected speed minima if circuit data is unreachable).
-5. **Ranking** — each corner window (±1.2% of lap distance around the apex) is ranked by **average speed**; the team score is the mean of its drivers. Higher average speed through the corner = better.
+5. **Ranking** — each corner window (±1.2% of lap distance) ranked by **average speed**; team score = mean of its drivers. Higher avg speed through the corner = better.
 
-## What you get
+## Hardened against real-world failures
 
-- 📋 Session summary (fastest lap, corner kings)
-- 🗺️ Track map coloured by **fastest team per segment**, with numbered corner apexes
-- ↩️ Turn-by-turn table (best driver, best team, top 3 + gaps per corner)
-- 🏎️ Per-driver table (best lap, top/avg speed, corners won, avg corner deficit)
-- 🏆 Per-team table (avg best lap, corners won, avg corner speed, strongest turn)
-- 📈 Overlaid best-lap speed traces with corner guides
-- 🏁 Official session classification
+- Request pacing + automatic retry on rate limits (`429`), server errors (`5xx`), bad responses, and timeouts (30 s per request).
+- Friendly messages for: no Grands Prix in a year, no/cancelled sessions, sessions with no timed laps yet, drivers with missing telemetry (skipped, analysis continues with the rest).
+- UI locks during analysis so selections can't change mid-run; minimum 2 drivers with telemetry required or it tells you to retry.
+- Works with any Grand Prix 2023 → present (OpenF1 coverage).
 
-## Notes & limits (website)
+## Notes & limits
 
-- OpenF1 historical data covers **2023 → present**; the free tier allows ~3 req/s and ~30 req/min. The app paces requests and retries on `429`, and you can limit analysis to the Top 10 / Top 5 fastest laps for speed.
+- OpenF1 free tier: ~3 req/s, ~30 req/min — analyzing all 20 drivers takes ~1 min; Top 10/Top 5 is faster.
 - Data is unofficial (community project, not affiliated with Formula 1).
-
-## Engine 2 — FastF1 Python analyzer (deep analysis, still zero storage)
-
-Same turn-by-turn contract, deeper data: high-rate telemetry with throttle/brake/gear, official corner apexes at exact track distances, and seasons back to **2018**.
-
-```sh
-cd fastf1
-pip install -r requirements.txt
-python corner_analysis.py --year 2024 --gp Singapore --session FP1
-python corner_analysis.py --year 2024 --gp Singapore --session Q --top 10 --plots
-```
-
-Options: `--session FP1|FP2|FP3|Q|SQ|S|R`, `--top N` (fastest N laps only),
-`--plots` (interactive track map + speed traces), `--save-plots DIR` (opt-in file output).
-
-**Zero-storage how:** FastF1 writes a requests-cache sqlite file even when its cache is "disabled", so the script points the cache at a temp directory, closes the sqlite handle on exit, and deletes the directory — verified: full FP1 + Qualifying runs leave nothing behind (no `fastf1` cache dir, no temp dirs). Data is fetched live on every run.
-
-Validated live: 2024 Singapore FP1 top 3 (LEC 1:31.763, NOR 1:31.839, SAI 1:31.952) and Qualifying top 3 (NOR 1:29.525 = real pole, PIA 1:29.640, VER 1:29.680) match official times exactly.

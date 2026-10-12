@@ -28,33 +28,62 @@ const REQUEST_SPACING_MS = 700; // stay under OpenF1 free-tier rate limits
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* ---------------- throttled fetch with 429 backoff ---------------- */
+/* ---------------- throttled fetch with timeout + retry ---------------- */
 let lastReqAt = 0;
+const REQUEST_TIMEOUT_MS = 30000;
 async function pace() {
   const wait = REQUEST_SPACING_MS - (Date.now() - lastReqAt);
   if (wait > 0) await sleep(wait);
   lastReqAt = Date.now();
 }
 async function apiGet(url, label) {
+  let lastError = null;
   for (let attempt = 1; attempt <= 5; attempt++) {
     await pace();
-    let res;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
     try {
-      res = await fetch(url);
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (res.status === 429) {
+        setStatus(`Rate-limited by the API — waiting 15s before retry (attempt ${attempt}/5)…`);
+        await sleep(15000);
+        continue;
+      }
+      if (res.status >= 500 && res.status < 600) {
+        lastError = new Error(`API error loading ${label}: HTTP ${res.status}`);
+        await sleep(2000 * attempt); // transient server error — retry
+        continue;
+      }
+      if (!res.ok) throw new Error(`API error loading ${label}: HTTP ${res.status}`);
+      try {
+        const data = await res.json();
+        if (data == null) throw new Error("empty response");
+        return data;
+      } catch (e) {
+        lastError = new Error(`Bad response loading ${label}: ${e.message}`);
+        await sleep(2000 * attempt);
+        continue;
+      }
     } catch (e) {
-      if (attempt === 5) throw new Error(`Network error loading ${label}: ${e.message}`);
+      if (e && e.name === "AbortError") {
+        lastError = new Error(`Timed out loading ${label} (>${REQUEST_TIMEOUT_MS / 1000}s)`);
+      } else if (e instanceof TypeError) {
+        // fetch() TypeError = network failure / CORS / offline
+        lastError = new Error(`Network error loading ${label}: no connection to api.openf1.org (${e.message})`);
+      } else if (/^API error|^Rate limit/.test(e.message || "")) {
+        throw e; // non-retryable, already classified
+      } else {
+        lastError = e;
+      }
+      if (attempt === 5) break;
+      setStatus(`Retrying ${label} (attempt ${attempt + 1}/5)…`);
       await sleep(2000 * attempt);
-      continue;
+    } finally {
+      clearTimeout(timer);
     }
-    if (res.status === 429) {
-      setStatus(`Rate-limited by the API — waiting 15s before retry (attempt ${attempt}/5)…`);
-      await sleep(15000);
-      continue;
-    }
-    if (!res.ok) throw new Error(`API error loading ${label}: HTTP ${res.status}`);
-    return res.json();
   }
-  throw new Error(`Rate limit exceeded while loading ${label}. Wait a minute and try again (or analyze fewer drivers).`);
+  throw lastError instanceof Error ? lastError
+    : new Error(`Failed loading ${label} after 5 attempts. Wait a minute and try again (or analyze fewer drivers).`);
 }
 
 /* ---------------- formatting helpers ---------------- */
@@ -129,16 +158,26 @@ async function loadMeetings() {
   clearError();
   try {
     const meetings = await apiGet(`${OPENF1}/meetings?year=${encodeURIComponent(year)}`, "Grand Prix list");
+    if (!Array.isArray(meetings) || meetings.length === 0) {
+      gpSel.innerHTML = `<option value="">No Grands Prix found for ${esc(year)}</option>`;
+      showError(`The API returned no Grands Prix for ${year}. The season may not have started yet — try an earlier year.`);
+      return;
+    }
     meetings.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
     state.meetings = meetings;
     state.meetingByKey = new Map(meetings.map((m) => [String(m.meeting_key), m]));
     gpSel.innerHTML = `<option value="">— Select Grand Prix —</option>`;
     for (const m of meetings) {
+      if (m.is_cancelled) continue; // nothing to analyze
       const o = document.createElement("option");
       o.value = m.meeting_key;
       const d = new Date(m.date_start).toLocaleDateString(undefined, { day: "numeric", month: "short" });
       o.textContent = `${m.meeting_name} — ${m.location} (${d})`;
       gpSel.appendChild(o);
+    }
+    if (gpSel.options.length <= 1) {
+      gpSel.innerHTML = `<option value="">No (non-cancelled) Grands Prix for ${esc(year)}</option>`;
+      return;
     }
     gpSel.disabled = false;
   } catch (e) { showError(e.message); }
@@ -154,10 +193,19 @@ async function loadSessions() {
   try {
     // ALL session types for this meeting: Practice, Qualifying, Sprint, Race…
     const sessions = await apiGet(`${OPENF1}/sessions?meeting_key=${encodeURIComponent(meetingKey)}`, "session list");
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      sesSel.innerHTML = `<option value="">No sessions found for this event</option>`;
+      showError("The API returned no sessions for this Grand Prix. It may be too far in the future.");
+      return;
+    }
     sessions.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
-    state.sessions = sessions;
+    state.sessions = sessions.filter((s) => !s.is_cancelled);
+    if (state.sessions.length === 0) {
+      sesSel.innerHTML = `<option value="">All sessions for this event were cancelled</option>`;
+      return;
+    }
     sesSel.innerHTML = `<option value="">— Select session to analyze —</option>`;
-    for (const s of sessions) {
+    for (const s of state.sessions) {
       const o = document.createElement("option");
       o.value = s.session_key;
       const d = new Date(s.date_start).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -216,14 +264,9 @@ function detectCornersFromSpeed(refSpeed) {
   const cands = [];
   for (let i = 5; i < sm.length - 5; i++) {
     if (sm[i] < sm[i - 1] && sm[i] <= sm[i + 1] && sm[i] < 0.93 * max) {
-      let deep = true;
-      for (let k = 2; k <= 20; k++) {
-        if (sm[i] > sm[Math.max(0, i - k)] - 3 && sm[i] > sm[Math.min(sm.length - 1, i + k)] - 3) { /* keep checking */ }
-      }
       // prominence: clearly slower than surroundings ±20 bins
       const around = Math.max(sm[Math.max(0, i - 20)], sm[Math.min(sm.length - 1, i + 20)]);
-      if (around - sm[i] < 4) deep = false;
-      if (deep) cands.push({ bin: i, speed: sm[i] });
+      if (around - sm[i] >= 4) cands.push({ bin: i, speed: sm[i] });
     }
   }
   // greedy: slowest first, enforce min separation
@@ -244,17 +287,20 @@ function mapOfficialCorners(circuit) {
       !Array.isArray(circuit.corners) || circuit.corners.length === 0) return null;
   const { x, y, corners } = circuit;
   const mapped = [];
-  for (const c of corners) {
+  corners.forEach((c, idx) => {
     const tp = c.trackPosition;
-    if (!tp) continue;
-    let best = 0, bestD = Infinity;
+    if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.y)) return;
+    let best = -1, bestD = Infinity;
     for (let i = 0; i < x.length; i++) {
+      if (!Number.isFinite(x[i]) || !Number.isFinite(y[i])) continue;
       const dx = x[i] - tp.x, dy = y[i] - tp.y;
       const d = dx * dx + dy * dy;
       if (d < bestD) { bestD = d; best = i; }
     }
-    mapped.push({ number: c.number, bin: Math.round((best / (x.length - 1)) * (N_BINS - 1)), official: true });
-  }
+    if (best < 0) return;
+    const num = Number.isFinite(c.number) ? c.number : idx + 1;
+    mapped.push({ number: num, bin: Math.round((best / (x.length - 1)) * (N_BINS - 1)), official: true });
+  });
   mapped.sort((a, b) => a.bin - b.bin);
   // dedupe apexes that collapse onto the same bins (e.g. chicanes)
   const dedup = [];
@@ -281,9 +327,13 @@ async function runAnalysis() {
   const sessionKey = $("sessionSelect").value;
   if (!sessionKey) return;
   const session = state.sessions.find((s) => String(s.session_key) === String(sessionKey));
-  const meeting = state.meetingByKey.get(String($("gpSelect").value));
-  const driverLimit = parseInt($("driverLimitSelect").value, 10);
-  $("analyzeBtn").disabled = true;
+  if (!session) { showError("Selected session is no longer available. Please re-select the Grand Prix and session."); return; }
+  const meeting = state.meetingByKey.get(String($("gpSelect").value)) || null;
+  const driverLimit = parseInt($("driverLimitSelect").value, 10) || 99;
+  // lock the UI so a mid-run change can't mix two analyses
+  const locked = ["yearSelect", "gpSelect", "sessionSelect", "driverLimitSelect", "analyzeBtn"];
+  const wasEnabled = {};
+  locked.forEach((id) => { wasEnabled[id] = !$(id).disabled; $(id).disabled = true; });
 
   try {
     setStatus("Fetching session overview (drivers, laps, classification)…", 0.03);
@@ -292,6 +342,9 @@ async function runAnalysis() {
       apiGet(`${OPENF1}/laps?session_key=${sessionKey}`, "laps"),
       apiGet(`${OPENF1}/session_result?session_key=${sessionKey}`, "session classification").catch(() => []),
     ]);
+    if (!Array.isArray(drivers) || !Array.isArray(laps)) {
+      throw new Error("The API returned an unexpected response for drivers/laps. Please retry in a minute.");
+    }
 
     // Official corner geometry — fetched live, never stored.
     let circuit = null;
@@ -351,7 +404,10 @@ async function runAnalysis() {
         console.warn(`Skipping ${acr}: ${e.message}`);
         continue;
       }
-      const pts = rows.filter((r) => r.speed != null).map((r) => ({ t: Date.parse(r.date), speed: r.speed }));
+      if (!Array.isArray(rows) || rows.length === 0) { console.warn(`Skipping ${acr}: empty telemetry response`); continue; }
+      const pts = rows
+        .filter((r) => r && Number.isFinite(r.speed) && Number.isFinite(Date.parse(r.date)))
+        .map((r) => ({ t: Date.parse(r.date), speed: r.speed }));
       const trace = speedToProgressTrace(pts);
       if (!trace) { console.warn(`Skipping ${acr}: not enough telemetry points`); continue; }
       let top = 0, sum = 0;
@@ -432,27 +488,28 @@ async function runAnalysis() {
 
     setStatus("Rendering…", 0.95);
     await sleep(30);
-    renderAll();
+    await renderAll();
     $("results").hidden = false;
     setStatus(`Done — analyzed ${traces.size} drivers over ${cornerResults.length} corners (${cornerSource} apexes). Only the selected session was analyzed.`, 1);
   } catch (e) {
     console.error(e);
-    showError(e.message);
+    showError((e && e.message) || String(e));
   } finally {
-    $("analyzeBtn").disabled = false;
+    locked.forEach((id) => { $(id).disabled = !wasEnabled[id]; });
+    if ($("sessionSelect").disabled) $("analyzeBtn").disabled = true;
   }
 }
 
 /* =====================================================================
  * RENDERING
  * ===================================================================== */
-function renderAll() {
+async function renderAll() {
   const a = state.analysis;
   renderSummary(a);
   renderCornerTable(a);
   renderDriverTable(a);
   renderTeamTable(a);
-  renderTrackMap(a);
+  await renderTrackMap(a);
   renderSpeedChart(a);
   renderClassification(a);
 }
@@ -529,9 +586,18 @@ function renderTeamTable(a) {
 }
 
 /* ---- track shape: official centerline, else fastest driver's outline ---- */
+function cleanShape(xs, ys) {
+  const x = [], y = [];
+  const n = Math.min(xs.length, ys.length);
+  for (let i = 0; i < n; i++) {
+    if (Number.isFinite(xs[i]) && Number.isFinite(ys[i])) { x.push(xs[i]); y.push(ys[i]); }
+  }
+  return x.length >= 10 ? { x, y } : null;
+}
 async function getTrackShape(a) {
   if (a.circuit && Array.isArray(a.circuit.x) && a.circuit.x.length > 10) {
-    return { x: a.circuit.x, y: a.circuit.y };
+    const clean = cleanShape(a.circuit.x, a.circuit.y || []);
+    if (clean) return clean;
   }
   // Fallback: one extra live request — outline from the fastest driver's
   // location trace during their best lap.
@@ -544,7 +610,7 @@ async function getTrackShape(a) {
     `&date>${encodeURIComponent(from)}&date<${encodeURIComponent(to)}`, "track outline");
   const pts = rows.filter((r) => r.x != null && r.y != null).sort((p, q) => Date.parse(p.date) - Date.parse(q.date));
   if (pts.length < 10) return null;
-  return { x: pts.map((p) => p.x), y: pts.map((p) => p.y) };
+  return cleanShape(pts.map((p) => p.x), pts.map((p) => p.y));
 }
 
 async function renderTrackMap(a) {
@@ -562,8 +628,20 @@ async function renderTrackMap(a) {
   }
   const { x, y } = shape;
   const n = x.length;
-  // fit to canvas
-  let minX = Math.min(...x), maxX = Math.max(...x), minY = Math.min(...y), maxY = Math.max(...y);
+  // fit to canvas (loop-based min/max: safe for large arrays)
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    if (x[i] < minX) minX = x[i];
+    if (x[i] > maxX) maxX = x[i];
+    if (y[i] < minY) minY = y[i];
+    if (y[i] > maxY) maxY = y[i];
+  }
+  if (![minX, maxX, minY, maxY].every(Number.isFinite) || maxX === minX || maxY === minY) {
+    ctx.fillStyle = "#9aa4bd"; ctx.font = "16px sans-serif";
+    ctx.fillText("Track outline data was invalid for this session.", 30, 60);
+    $("mapLegend").textContent = "";
+    return;
+  }
   const pad = 60, W = canvas.width, H = canvas.height;
   const sc = Math.min((W - 2 * pad) / Math.max(1e-9, maxX - minX), (H - 2 * pad) / Math.max(1e-9, maxY - minY));
   const px = (i) => pad + (x[i] - minX) * sc + ((W - 2 * pad) - (maxX - minX) * sc) / 2;
