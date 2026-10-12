@@ -26,6 +26,7 @@ const MIN_TELEMETRY_POINTS = 50;
 const REQUEST_SPACING_MS = 700; // stay under OpenF1 free-tier rate limits
 
 const $ = (id) => document.getElementById(id);
+const $$ = (sel) => document.querySelector(sel); // for CSS selectors (e.g. "#cornerTable tbody")
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------------- throttled fetch with timeout + retry ---------------- */
@@ -532,7 +533,7 @@ function renderSummary(a) {
 }
 
 function renderCornerTable(a) {
-  const tb = $("cornerTable tbody");
+  const tb = $$("#cornerTable tbody");
   tb.innerHTML = "";
   for (const c of a.cornerResults) {
     const best = c.ranking[0];
@@ -553,7 +554,7 @@ function renderCornerTable(a) {
 }
 
 function renderDriverTable(a) {
-  const tb = $("driverTable tbody");
+  const tb = $$("#driverTable tbody");
   tb.innerHTML = "";
   for (const d of a.driverStats) {
     const tr = document.createElement("tr");
@@ -570,7 +571,7 @@ function renderDriverTable(a) {
 }
 
 function renderTeamTable(a) {
-  const tb = $("teamTable tbody");
+  const tb = $$("#teamTable tbody");
   tb.innerHTML = "";
   for (const t of a.teamStats) {
     const tr = document.createElement("tr");
@@ -764,7 +765,7 @@ function drawSpeedChart(a, visible) {
 }
 
 function renderClassification(a) {
-  const tb = $("resultTable tbody");
+  const tb = $$("#resultTable tbody");
   tb.innerHTML = "";
   const rows = [...(a.classification || [])].sort((x, y) => (x.position ?? 999) - (y.position ?? 999));
   if (!rows.length) {
