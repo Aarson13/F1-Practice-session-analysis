@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis</title>
+<meta name="description" content="Live F1 session analyzer. Pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) and get turn-by-turn driver and team corner analysis. All data is fetched live from the OpenF1 API on page load — nothing is stored." />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="flag">🏁</span>
+    <div>
+      <h1>F1 Session Analyzer</h1>
+      <p>Turn-by-turn driver &amp; team corner analysis &middot; live data, zero storage</p>
+    </div>
+  </div>
+  <div class="live-badge" id="liveBadge" title="All data is fetched live from the OpenF1 API when you run an analysis. Nothing is downloaded or stored.">
+    <span class="dot"></span> LIVE API &middot; NO STORAGE
+  </div>
+</header>
+
+<main>
+  <!-- ============ CONTROLS ============ -->
+  <section class="card" id="controlsCard">
+    <h2>1 &middot; Select session</h2>
+    <p class="hint">
+      Works for <strong>every session type</strong> — Practice 1/2/3, Qualifying, Sprint Qualifying,
+      Sprint and Race — not just free practice. Only the session you select below is analyzed.
+      Data is fetched live from <code>api.openf1.org</code> when you press Analyze.
+    </p>
+    <div class="controls-grid">
+      <label>Year
+        <select id="yearSelect"><option value="">Loading…</option></select>
+      </label>
+      <label>Grand Prix
+        <select id="gpSelect" disabled><option value="">Pick a year first</option></select>
+      </label>
+      <label>Session (all types)
+        <select id="sessionSelect" disabled><option value="">Pick a Grand Prix first</option></select>
+      </label>
+      <label>Drivers to analyze
+        <select id="driverLimitSelect" title="Fewer drivers = fewer live API requests = faster analysis">
+          <option value="99">All drivers</option>
+          <option value="10" selected>Top 10 (fastest laps)</option>
+          <option value="5">Top 5 (fastest laps)</option>
+        </select>
+      </label>
+    </div>
+    <div class="controls-row">
+      <button id="analyzeBtn" class="primary" disabled>Analyze selected session</button>
+      <button id="resetBtn" class="ghost">Reset</button>
+    </div>
+    <div id="statusBox" class="status" hidden>
+      <div class="progress"><div id="progressBar"></div></div>
+      <div id="statusText">…</div>
+    </div>
+    <div id="errorBox" class="error" hidden></div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="results" hidden>
+    <section class="card" id="summaryCard">
+      <h2>2 &middot; Session summary</h2>
+      <div id="sessionMeta" class="meta"></div>
+      <div id="summaryChips" class="chips"></div>
+    </section>
+
+    <section class="card">
+      <h2>3 &middot; Track map — who is fastest where</h2>
+      <p class="hint">Track outline is coloured by the <strong>fastest team in each track segment</strong>.
+        Numbered dots mark corner apexes (official circuit data, fetched live).</p>
+      <div class="map-wrap">
+        <canvas id="trackMap" width="900" height="600"></canvas>
+      </div>
+      <div id="mapLegend" class="legend"></div>
+    </section>
+
+    <section class="card">
+      <h2>4 &middot; Turn-by-turn analysis</h2>
+      <p class="hint">Each corner window (±1.2% of lap distance around the apex) is ranked by
+        <strong>average speed</strong>. Higher average speed through the corner = better.</p>
+      <div class="table-scroll"><table id="cornerTable">
+        <thead><tr>
+          <th>Turn</th><th>Apex&nbsp;%</th><th>Best driver</th><th>Avg&nbsp;speed</th>
+          <th>Best team</th><th>Top 3 (gap)</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+
+    <section class="card">
+      <h2>5 &middot; Driver analysis</h2>
+      <div class="table-scroll"><table id="driverTable">
+        <thead><tr>
+          <th>Driver</th><th>Team</th><th>Best lap</th><th>Top speed</th>
+          <th>Avg speed</th><th>Corners won</th><th>Avg corner deficit</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+
+    <section class="card">
+      <h2>6 &middot; Team analysis</h2>
+      <div class="table-scroll"><table id="teamTable">
+        <thead><tr>
+          <th>Team</th><th>Drivers</th><th>Avg best lap</th><th>Corners won</th>
+          <th>Avg corner speed</th><th>Strongest turn</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+
+    <section class="card">
+      <h2>7 &middot; Speed traces — best laps overlaid</h2>
+      <p class="hint">Speed (km/h) vs lap progress for each driver's best lap. Toggle drivers on/off.</p>
+      <div id="traceToggles" class="toggles"></div>
+      <div class="map-wrap"><canvas id="speedChart" width="900" height="380"></canvas></div>
+    </section>
+
+    <section class="card">
+      <h2>8 &middot; Official session classification</h2>
+      <div class="table-scroll"><table id="resultTable">
+        <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>Best / total</th><th>Laps</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+  </section>
+
+  <footer>
+    <p>Data: <a href="https://openf1.org" target="_blank" rel="noopener">OpenF1 API</a> (free historical
+      data since 2023) + MultiViewer circuit data. Everything is fetched live in your browser on Analyze —
+      this app stores no F1 data. Unofficial fan project, not affiliated with Formula 1.</p>
+  </footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
