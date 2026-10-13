@@ -810,10 +810,48 @@ async function getTrackShape(a) {
   return cleanShape(pts.map((p) => p.x), pts.map((p) => p.y));
 }
 
+/* ---- HiDPI canvas: crisp rendering on retina displays ----
+ * Keeps the drawing coordinate space in CSS pixels while the backing
+ * store scales with devicePixelRatio. Falls back to 900px wide when
+ * layout info is unavailable (e.g. headless test env). */
+function cssDpr() {
+  return (typeof window !== "undefined" && window.devicePixelRatio) || 1;
+}
+function fitCanvas(canvas, aspect) {
+  const dpr = cssDpr();
+  const cssW = Math.max(320, Math.round(canvas.clientWidth || canvas.width || 900));
+  const W = cssW, H = Math.round(cssW * aspect);
+  const bw = Math.round(W * dpr), bh = Math.round(H * dpr);
+  if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, W, H, dpr };
+}
+function shapePixels(shape, W, H) {
+  const { x, y } = shape;
+  const n = x.length;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    if (x[i] < minX) minX = x[i];
+    if (x[i] > maxX) maxX = x[i];
+    if (y[i] < minY) minY = y[i];
+    if (y[i] > maxY) maxY = y[i];
+  }
+  const pad = 60;
+  const sc = Math.min((W - 2 * pad) / Math.max(1e-9, maxX - minX), (H - 2 * pad) / Math.max(1e-9, maxY - minY));
+  const PX = new Float64Array(n), PY = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    PX[i] = pad + (x[i] - minX) * sc + ((W - 2 * pad) - (maxX - minX) * sc) / 2;
+    PY[i] = pad + (maxY - y[i]) * sc + ((H - 2 * pad) - (maxY - minY) * sc) / 2;
+  }
+  return { PX, PY, n };
+}
+
 async function renderTrackMap(a) {
   const canvas = $("trackMap");
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const pre = fitCanvas(canvas, 600 / 900);
+  const ctx = pre.ctx;
+  ctx.clearRect(0, 0, pre.W, pre.H);
   setStatus("Drawing track map…", 0.97);
   let shape = null;
   try { shape = await getTrackShape(a); } catch (e) { console.warn("track shape failed", e); }
@@ -823,15 +861,14 @@ async function renderTrackMap(a) {
     $("mapLegend").textContent = "";
     return;
   }
-  const { x, y } = shape;
-  const n = x.length;
+  const n = shape.x.length;
   // fit to canvas (loop-based min/max: safe for large arrays)
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (let i = 0; i < n; i++) {
-    if (x[i] < minX) minX = x[i];
-    if (x[i] > maxX) maxX = x[i];
-    if (y[i] < minY) minY = y[i];
-    if (y[i] > maxY) maxY = y[i];
+    if (shape.x[i] < minX) minX = shape.x[i];
+    if (shape.x[i] > maxX) maxX = shape.x[i];
+    if (shape.y[i] < minY) minY = shape.y[i];
+    if (shape.y[i] > maxY) maxY = shape.y[i];
   }
   if (![minX, maxX, minY, maxY].every(Number.isFinite) || maxX === minX || maxY === minY) {
     ctx.fillStyle = "#9aa4bd"; ctx.font = "16px sans-serif";
@@ -839,14 +876,10 @@ async function renderTrackMap(a) {
     $("mapLegend").textContent = "";
     return;
   }
-  const pad = 60, W = canvas.width, H = canvas.height;
-  const sc = Math.min((W - 2 * pad) / Math.max(1e-9, maxX - minX), (H - 2 * pad) / Math.max(1e-9, maxY - minY));
-  const PX = new Float64Array(n), PY = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    PX[i] = pad + (x[i] - minX) * sc + ((W - 2 * pad) - (maxX - minX) * sc) / 2;
-    PY[i] = pad + (maxY - y[i]) * sc + ((H - 2 * pad) - (maxY - minY) * sc) / 2;
-  }
-  state.mapShape = { PX, PY, n };
+  const fit = fitCanvas(canvas, 600 / 900);
+  const pix = shapePixels(shape, fit.W, fit.H);
+  state.mapShape = { x: shape.x, y: shape.y, PX: pix.PX, PY: pix.PY, n: pix.n };
+  state.mapDims = { W: fit.W, H: fit.H, dpr: fit.dpr };
   stopReplay();
   drawTrackMap(a, null);
   $("mapLegend").innerHTML = [...new Map(a.teamStats.map((t) => [t.team, t.colour])).entries()]
@@ -860,11 +893,15 @@ function cornerPixel(c, shape) {
 
 function drawTrackMap(a, highlightBin) {
   const canvas = $("trackMap");
-  const ctx = canvas.getContext("2d");
   const shape = state.mapShape;
-  if (!shape) return;
+  if (!shape || !shape.x) return;
+  const fit = fitCanvas(canvas, 600 / 900);
+  const pix = shapePixels(shape, fit.W, fit.H);
+  shape.PX = pix.PX; shape.PY = pix.PY; shape.n = pix.n;
+  state.mapDims = { W: fit.W, H: fit.H, dpr: fit.dpr };
+  const ctx = fit.ctx;
   const { PX, PY, n } = shape;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, fit.W, fit.H);
   // fastest team per bin -> segment colours
   const SEGS = 240;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -926,9 +963,11 @@ function redrawStaticMap() {
 function onTrackClick(ev) {
   const a = state.analysis;
   if (!a || !state.apexPixels.length) return;
-  const rect = $("trackMap").getBoundingClientRect();
-  const scaleX = $("trackMap").width / Math.max(1, rect.width);
-  const scaleY = $("trackMap").height / Math.max(1, rect.height);
+  const canvas = $("trackMap");
+  const rect = canvas.getBoundingClientRect();
+  const dpr = cssDpr();
+  const scaleX = (canvas.width / dpr) / Math.max(1, rect.width);
+  const scaleY = (canvas.height / dpr) / Math.max(1, rect.height);
   const mx = (ev.clientX - rect.left) * scaleX, my = (ev.clientY - rect.top) * scaleY;
   let best = null, bestD = 26 * 26;
   for (const ap of state.apexPixels) {
@@ -976,8 +1015,9 @@ function renderSpeedChart(a, preset) {
 
 function drawSpeedChart(a, visible) {
   const canvas = $("speedChart");
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height;
+  const fit = fitCanvas(canvas, 380 / 900);
+  const ctx = fit.ctx;
+  const W = fit.W, H = fit.H;
   ctx.clearRect(0, 0, W, H);
   const padL = 52, padR = 14, padT = 18, padB = 34;
   let mn = Infinity, mx = -Infinity;
@@ -1301,7 +1341,8 @@ function toggleReplay() {
 }
 function startReplay() {
   const a = state.analysis;
-  if (!a || !state.mapShape || !state.mapCache) return;
+  if (!a || !state.mapShape || !state.mapShape.x) return;
+  drawTrackMap(a, null); // rebuild static frame + dims at current size
   const top = [...a.driverStats].sort((x, y) => x.lap.lap_duration - y.lap.lap_duration).slice(0, 6);
   replay.racers = top.map((d) => ({
     ...d, cum: cumTimeFor(a.traces.get(d.num).trace, d.lap.lap_duration),
@@ -1323,11 +1364,14 @@ function startReplay() {
 }
 function drawReplayFrame() {
   const a = state.analysis;
+  const dims = state.mapDims;
+  if (!a || !state.mapShape || !state.mapShape.PX || !state.mapCache || !dims) return;
   const canvas = $("trackMap");
   const ctx = canvas.getContext("2d");
-  if (!a || !state.mapShape || !state.mapCache) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // blit cache 1:1 in backing pixels
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(state.mapCache, 0, 0);
+  ctx.setTransform(dims.dpr, 0, 0, dims.dpr, 0, 0); // dots in CSS pixels
   const { PX, PY, n } = state.mapShape;
   ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
   for (const r of replay.racers) {

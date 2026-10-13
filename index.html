@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis</title>
 <meta name="description" content="Live F1 session analyzer. Pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) and get turn-by-turn driver and team corner analysis. All data is fetched live from the OpenF1 API on page load — nothing is stored." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,19 +15,20 @@
   <div class="brand">
     <span class="flag">🏁</span>
     <div>
-      <h1>F1 Session Analyzer</h1>
-      <p>Turn-by-turn driver &amp; team corner analysis &middot; live data, zero storage</p>
+      <h1>F1 Session <em>Analyzer</em></h1>
+      <p>Turn-by-turn driver &amp; team corner analysis</p>
     </div>
   </div>
+  <div class="powered">OPENF1 <b>·</b> LIVE DATA</div>
 </header>
 
 <main>
   <!-- ============ CONTROLS ============ -->
   <section class="card" id="controlsCard">
-    <h2>1 &middot; Select session</h2>
+    <h2><span class="tick"><span>01</span></span>Select session</h2>
     <p class="hint">
-      Works for <strong>every session type</strong> — Practice 1/2/3, Qualifying, Sprint Qualifying,
-      Sprint and Race — not just free practice. Only the session you select below is analyzed.
+      Every session type — Practice 1/2/3, Qualifying, Sprint Qualifying,
+      Sprint and Race. Only the session you select is analyzed.
       Data is fetched live from <code>api.openf1.org</code> when you press Analyze.
     </p>
     <div class="controls-grid">
@@ -34,7 +38,7 @@
       <label>Grand Prix
         <select id="gpSelect" disabled><option value="">Pick a year first</option></select>
       </label>
-      <label>Session (all types)
+      <label>Session
         <select id="sessionSelect" disabled><option value="">Pick a Grand Prix first</option></select>
       </label>
       <label>Drivers to analyze
@@ -60,17 +64,16 @@
   <!-- ============ RESULTS ============ -->
   <section id="results" hidden>
     <section class="card" id="summaryCard">
-      <h2>2 &middot; Session summary</h2>
+      <h2><span class="tick"><span>02</span></span>Session summary</h2>
       <div id="sessionMeta" class="meta"></div>
       <div id="summaryChips" class="chips"></div>
       <div id="contextStrip" class="chips" style="margin-top:8px"></div>
     </section>
 
     <section class="card">
-      <h2>3 &middot; Track map — who is fastest where</h2>
-      <p class="hint">Track outline is coloured by the <strong>fastest team in each track segment</strong>.
-        Numbered dots mark corner apexes (official circuit data, fetched live).
-        Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
+      <h2><span class="tick"><span>03</span></span>Track map — who is fastest where</h2>
+      <p class="hint">Segments coloured by the <strong>fastest team</strong> in each part of the lap.
+        Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
       <div class="controls-row" style="margin:0 0 10px">
         <button id="replayBtn" class="ghost">▶ Replay best laps</button>
         <label style="flex-direction:row;align-items:center">Speed
@@ -89,9 +92,9 @@
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>4 &middot; Turn-by-turn analysis</h2><button id="cornerCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>04</span></span>Turn-by-turn analysis</h2><button id="cornerCsvBtn" class="ghost small">⬇ CSV</button></div>
       <p class="hint">Each corner window (±1.2% of lap distance around the apex) is ranked by
-        <strong>average speed</strong>. Higher average speed through the corner = better.</p>
+        <strong>average speed</strong>. Faster through the corner means better.</p>
       <div class="table-scroll"><table id="cornerTable">
         <thead><tr>
           <th>Turn</th><th>Apex&nbsp;%</th><th>Best driver</th><th>Avg&nbsp;speed</th>
@@ -102,8 +105,8 @@
     </section>
 
     <section class="card">
-      <h2>5 &middot; Head-to-head</h2>
-      <p class="hint">Pick any two analyzed drivers to settle the argument: per-corner speed deltas across the whole lap.</p>
+      <h2><span class="tick"><span>05</span></span>Head-to-head</h2>
+      <p class="hint">Pick any two analyzed drivers: per-corner speed deltas across the whole lap.</p>
       <div class="controls-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,220px))">
         <label>Driver A <select id="h2hA"></select></label>
         <label>Driver B <select id="h2hB"></select></label>
@@ -112,7 +115,7 @@
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>6 &middot; Driver analysis</h2><button id="driverCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>06</span></span>Driver analysis</h2><button id="driverCsvBtn" class="ghost small">⬇ CSV</button></div>
       <div class="table-scroll"><table id="driverTable">
         <thead><tr>
           <th>Driver</th><th>Team</th><th>Best lap</th><th>Tyre</th><th>Top speed</th>
@@ -123,7 +126,7 @@
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>7 &middot; Team analysis</h2><button id="teamCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>07</span></span>Team analysis</h2><button id="teamCsvBtn" class="ghost small">⬇ CSV</button></div>
       <div class="table-scroll"><table id="teamTable">
         <thead><tr>
           <th>Team</th><th>Drivers</th><th>Avg best lap</th><th>Corners won</th>
@@ -134,7 +137,7 @@
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>8 &middot; Sectors &amp; speed traps</h2><button id="sectorCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>08</span></span>Sectors &amp; speed traps</h2><button id="sectorCsvBtn" class="ghost small">⬇ CSV</button></div>
       <p class="hint">Sector splits and trap speeds from each driver's best lap (I1/I2 intermediates, ST finish-line trap).</p>
       <div class="table-scroll"><table id="sectorTable">
         <thead><tr>
@@ -146,7 +149,7 @@
     </section>
 
     <section class="card" id="racePaceCard" hidden>
-      <div class="card-head"><h2>9 &middot; Race pace &amp; tyre degradation</h2><button id="paceCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>09</span></span>Race pace &amp; tyre degradation</h2><button id="paceCsvBtn" class="ghost small">⬇ CSV</button></div>
       <p class="hint">Stint-average pace and degradation slope (seconds lost per lap, least-squares fit).
         Out-laps and incident laps are excluded.</p>
       <div class="table-scroll"><table id="paceTable">
@@ -159,9 +162,9 @@
     </section>
 
     <section class="card">
-      <h2>10 &middot; Weekend view — how corner dominance shifted</h2>
-      <p class="hint">Runs a lite analysis (top 5 per session) of <strong>every session of this Grand Prix weekend</strong>
-        and shows which team owned each corner, session by session. Takes a while — progress is shown above.</p>
+      <h2><span class="tick"><span>10</span></span>Weekend view — how corner dominance shifted</h2>
+      <p class="hint">Lite analysis (top 5 per session) of <strong>every session of this Grand Prix weekend</strong>:
+        which team owned each corner, session by session. Takes a while — progress is shown above.</p>
       <div class="controls-row" style="margin-top:0">
         <button id="weekendBtn" class="primary">Analyze full weekend</button>
       </div>
@@ -169,14 +172,14 @@
     </section>
 
     <section class="card">
-      <h2>11 &middot; Speed traces — best laps overlaid</h2>
-      <p class="hint">Speed (km/h) vs lap progress for each driver's best lap. Toggle drivers on/off.</p>
+      <h2><span class="tick"><span>11</span></span>Speed traces — best laps overlaid</h2>
+      <p class="hint">Speed (km/h) against lap progress for each driver's best lap. Toggle drivers on/off.</p>
       <div id="traceToggles" class="toggles"></div>
       <div class="map-wrap"><canvas id="speedChart" width="900" height="380"></canvas></div>
     </section>
 
     <section class="card">
-      <h2>12 &middot; Official session classification</h2>
+      <h2><span class="tick"><span>12</span></span>Official session classification</h2>
       <div class="table-scroll"><table id="resultTable">
         <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>Best / total</th><th>Laps</th></tr></thead>
         <tbody></tbody>
@@ -184,12 +187,12 @@
     </section>
 
     <section class="card">
-      <h2>13 &middot; How this works</h2>
+      <h2><span class="tick"><span>13</span></span>How this works</h2>
       <div class="how">
         <p><strong>Best lap.</strong> For every driver we take the single fastest non-pit-out lap of the session you selected — nothing else from the weekend is used.</p>
         <p><strong>Same point on track.</strong> Speed samples arrive over <em>time</em>, but drivers reach each point at different times. We integrate speed into distance travelled and resample every lap to 1,000 evenly spaced points, so point 500 is the same piece of asphalt for everyone.</p>
         <p><strong>Corners.</strong> Apex positions come from official circuit data fetched live. Each corner is a small window (±1.2% of lap distance) around its apex.</p>
-        <p><strong>Ranking.</strong> Within each window we average each driver's speed. Highest average = best through that corner. A team's score is the mean of its drivers. "Corners won" simply counts windows topped.</p>
+        <p><strong>Ranking.</strong> Within each window we average each driver's speed. Highest average wins the corner. A team's score is the mean of its drivers. "Corners won" counts windows topped.</p>
         <p><strong>Tyres &amp; sectors.</strong> Compounds come from the session's stint list matched to the lap number of each best lap; sectors and traps are the official splits of that same lap.</p>
       </div>
     </section>
