@@ -28,15 +28,6 @@ body {
 .brand h1::after { content: ""; display: block; height: 3px; width: 64px; margin-top: 4px;
   background: linear-gradient(90deg, var(--accent), transparent); border-radius: 2px; }
 .brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-.live-badge {
-  display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700;
-  letter-spacing: 1px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px;
-  background: var(--card); white-space: nowrap;
-}
-.live-badge .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good);
-  box-shadow: 0 0 8px var(--good); animation: pulse 1.6s infinite; }
-@keyframes pulse { 50% { opacity: .4; } }
-
 main { max-width: 1080px; margin: 0 auto; padding: 22px 18px 60px; }
 .card {
   background: linear-gradient(180deg, var(--card-2), var(--card));
