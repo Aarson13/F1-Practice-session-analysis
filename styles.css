@@ -87,4 +87,24 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   font-size: 12.5px; color: var(--text); cursor: pointer; }
 .toggles input { accent-color: var(--accent); }
 
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.card-head h2 { margin: 0; }
+button.small { padding: 6px 12px; font-size: 12px; }
+
+.portrait { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; object-position: top;
+  vertical-align: -7px; margin-right: 7px; border: 1px solid var(--line); background: #0d1220; }
+
+.pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 99px;
+  border: 1px solid var(--line); letter-spacing: .4px; }
+.pill-soft { background: rgba(225,6,0,.18); color: #ff8a84; border-color: rgba(225,6,0,.5); }
+.pill-medium { background: rgba(255,176,32,.15); color: var(--warn); border-color: rgba(255,176,32,.45); }
+.pill-hard { background: rgba(230,230,230,.12); color: #dfe4ee; border-color: rgba(230,230,230,.35); }
+.pill-unknown { background: transparent; color: var(--muted); }
+
+.how p { color: var(--muted); font-size: 13.5px; line-height: 1.65; margin: 0 0 10px; }
+.how strong { color: var(--text); }
+
+tr.flash td { animation: rowflash 2s; }
+@keyframes rowflash { 0%, 40% { background: rgba(225,6,0,.28); } 100% { background: transparent; } }
+
 @media (max-width: 640px) { .topbar { flex-direction: column; align-items: flex-start; } }

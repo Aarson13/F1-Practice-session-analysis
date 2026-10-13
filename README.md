@@ -42,9 +42,21 @@ Then open **http://localhost:8000** (or the address `serve` prints) in Chrome/Ed
 1. Pick **Year** → **Grand Prix** → **Session** (all lists load live from the API).
 2. Optionally narrow to Top 10 / Top 5 fastest laps (faster, fewer API requests).
 3. Press **Analyze selected session** and watch the progress bar.
-4. You get: session summary, track map coloured by fastest team per segment,
-   turn-by-turn table, per-driver table, per-team table, speed traces, and the
-   official classification.
+4. Share it — **🔗 Copy share link** gives a URL that re-opens the exact same analysis.
+
+## What you get per analysis
+
+- 📋 Session summary + 🌦️ context strip (track/air temp, wind, rain, flag timeline)
+- 🗺️ Track map coloured by fastest team per segment, numbered apexes, **best-lap replay** (animated dots), click-an-apex ↔ table-row linking
+- ↩️ Turn-by-turn table (best driver/team per corner, top 3 + gaps) — hover a row to spotlight the corner on the map
+- ⚔️ **Head-to-head**: any 2 drivers, per-corner deltas across the whole lap
+- 🏎️ Per-driver table with **photos + tyre compound** of each best lap
+- 🏆 Per-team table (avg best lap, corners won, strongest turn)
+- ⏱️ Sectors & speed traps from each best lap
+- 🏁 Race pace & tyre degradation per stint (Race/Sprint sessions)
+- 🗓️ **Weekend view**: every session of the GP compared corner-by-corner
+- 📈 Overlaid best-lap speed traces, 🏁 official classification, ⬇️ CSV export on every table
+- ❓ "How this works" methodology explainer on the page
 
 ## Zero-storage, live-data design
 

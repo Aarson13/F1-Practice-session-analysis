@@ -124,6 +124,10 @@ const state = {
   meetingByKey: new Map(),
   sessions: [],       // sessions for selected meeting
   analysis: null,
+  mapShape: null,     // {PX, PY, n} fitted track outline for map/replay
+  mapCache: null,     // offscreen static map frame
+  apexPixels: [],     // [{x, y, idx, bin}] corner marker positions
+  highlightBin: null, // corner bin spotlighted from table hover
 };
 
 /* =====================================================================
@@ -141,13 +145,73 @@ async function init() {
   yearSel.value = String(thisYear);
   yearSel.addEventListener("change", loadMeetings);
   $("gpSelect").addEventListener("change", loadSessions);
-  $("sessionSelect").addEventListener("change", () => { $("analyzeBtn").disabled = !$("sessionSelect").value; });
+  $("sessionSelect").addEventListener("change", () => {
+    const has = !!$("sessionSelect").value;
+    $("analyzeBtn").disabled = !has;
+    $("copyLinkBtn").disabled = !has;
+  });
   $("analyzeBtn").addEventListener("click", runAnalysis);
+  $("copyLinkBtn").addEventListener("click", copyShareLink);
+  $("weekendBtn").addEventListener("click", runWeekend);
+  $("replayBtn").addEventListener("click", toggleReplay);
+  $("trackMap").addEventListener("click", onTrackClick);
+  $("h2hA").addEventListener("change", renderH2H);
+  $("h2hB").addEventListener("change", renderH2H);
+  $("cornerCsvBtn").addEventListener("click", () => exportSessionCSV("corners"));
+  $("driverCsvBtn").addEventListener("click", () => exportSessionCSV("drivers"));
+  $("teamCsvBtn").addEventListener("click", () => exportSessionCSV("teams"));
+  $("sectorCsvBtn").addEventListener("click", () => exportSessionCSV("sectors"));
+  $("paceCsvBtn").addEventListener("click", () => exportSessionCSV("pace"));
   $("resetBtn").addEventListener("click", () => {
     $("results").hidden = true; clearError();
     $("statusBox").hidden = true; $("progressBar").style.width = "0%";
+    try { history.replaceState(null, "", location.pathname); } catch { /* ignore */ }
   });
+  // shared-link autoload (?#y=&m=&s=) takes precedence over the default flow
+  try {
+    if (location.hash.length > 1 && (await loadFromHash())) return;
+  } catch (e) { console.warn("share link failed", e); }
   await loadMeetings();
+}
+
+function saveShareHash() {
+  try {
+    const y = $("yearSelect").value, m = $("gpSelect").value, s = $("sessionSelect").value;
+    if (y && m && s) history.replaceState(null, "", `#y=${y}&m=${m}&s=${s}`);
+  } catch { /* ignore (e.g. sandboxed iframe) */ }
+}
+async function copyShareLink() {
+  saveShareHash();
+  const url = location.href;
+  const btn = $("copyLinkBtn");
+  const done = () => { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "🔗 Copy share link"; }, 2000); };
+  try {
+    await navigator.clipboard.writeText(url);
+    done();
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = url;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch { showError("Could not copy — the link is in the address bar."); }
+    ta.remove();
+  }
+}
+async function loadFromHash() {
+  const p = Object.fromEntries(location.hash.replace(/^#/, "").split("&").map((kv) => kv.split("=")));
+  if (!p.y || !p.m || !p.s) return false;
+  if (![...$("yearSelect").options].some((o) => o.value === p.y)) return false;
+  $("yearSelect").value = p.y;
+  await loadMeetings();
+  if (!state.meetingByKey.has(String(p.m))) return false;
+  $("gpSelect").value = String(p.m);
+  await loadSessions();
+  if (!state.sessions.some((s) => String(s.session_key) === String(p.s))) return false;
+  $("sessionSelect").value = String(p.s);
+  $("analyzeBtn").disabled = false;
+  $("copyLinkBtn").disabled = false;
+  await runAnalysis();
+  return true;
 }
 
 async function loadMeetings() {
@@ -320,6 +384,262 @@ function windowStats(trace, bin, half = CORNER_HALF_WINDOW) {
 }
 
 /* =====================================================================
+ * ANALYSIS CORE — shared by single-session and weekend analysis.
+ * progress(frac, text) reports 0..1. Returns a plain analysis object.
+ * Only the session passed in is touched — never the whole weekend.
+ * ===================================================================== */
+function compoundFor(stintsByDriver, num, lapNumber) {
+  const list = stintsByDriver.get(num) || [];
+  const st = list.find((s) => lapNumber >= s.lap_start && lapNumber <= s.lap_end) || list[list.length - 1];
+  const c = st && st.compound ? String(st.compound).toUpperCase() : "";
+  return ["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"].includes(c) ? c : "Unknown";
+}
+function summarizeWeather(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  // field names differ across API versions — accept both
+  const num = (ks) => rows.map((r) => {
+    for (const k of ks) { if (Number.isFinite(r[k])) return r[k]; }
+    return NaN;
+  }).filter(Number.isFinite);
+  // loop-safe min/max (arrays can be large)
+  const span = (a) => {
+    if (!a.length) return null;
+    let lo = Infinity, hi = -Infinity;
+    for (const v of a) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    return [lo, hi];
+  };
+  const track = span(num(["track_temperature", "track_temp"]));
+  const air = span(num(["air_temperature", "air_temp"]));
+  const wind = num(["wind_speed"]);
+  const rain = rows.some((r) => Number.isFinite(r.rainfall) && r.rainfall > 0);
+  let windMax = null;
+  for (const v of wind) windMax = windMax == null ? v : Math.max(windMax, v);
+  return { track, air, windMax, rain, n: rows.length };
+}
+function summarizeFlags(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((r) => r && (r.category === "Flag" || r.category === "SafetyCar"))
+    .filter((r) => !["GREEN", "CLEAR", "CHEQUERED"].includes(r.flag))
+    .map((r) => ({ t: String(r.date || "").slice(11, 19), flag: r.flag || r.category, msg: r.message || "" }))
+    .slice(0, 12);
+}
+function leastSquares(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return 0;
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); den += (xs[i] - mx) * (xs[i] - mx); }
+  return den ? num / den : 0;
+}
+function computePace(laps, stintsByDriver) {
+  const out = [];
+  for (const [num, list] of stintsByDriver) {
+    const sorted = [...list].sort((a, b) => a.lap_start - b.lap_start);
+    sorted.forEach((st, si) => {
+      const rows = laps
+        .filter((l) => l.driver_number === num && Number.isInteger(l.lap_number)
+          && l.lap_number >= st.lap_start && l.lap_number <= st.lap_end
+          && l.lap_duration > 0 && !l.is_pit_out_lap)
+        .sort((a, b) => a.lap_number - b.lap_number);
+      if (rows.length < 4) return; // need out-lap + ≥3 timed laps
+      const timed = rows.slice(1);
+      const ds = timed.map((r) => r.lap_duration).sort((a, b) => a - b);
+      const med = ds[Math.floor(ds.length / 2)];
+      const clean = timed.filter((r) => r.lap_duration <= med * 1.07);
+      if (clean.length < 3) return;
+      const avg = clean.reduce((s, r) => s + r.lap_duration, 0) / clean.length;
+      out.push({
+        num, stint: si + 1, compound: st.compound || "Unknown",
+        age: st.tyre_age_at_start ?? "—", n: clean.length, avg,
+        slope: leastSquares(clean.map((r) => r.lap_number), clean.map((r) => r.lap_duration)),
+      });
+    });
+  }
+  return out.sort((a, b) => a.avg - b.avg);
+}
+
+async function analyzeSessionData(sessionKey, session, meeting, driverLimit, progress) {
+  progress(0.03, "Fetching session overview (drivers, laps, stints, classification)…");
+  const [drivers, laps, classification, stints, weather, raceControl] = await Promise.all([
+    apiGet(`${OPENF1}/drivers?session_key=${sessionKey}`, "drivers"),
+    apiGet(`${OPENF1}/laps?session_key=${sessionKey}`, "laps"),
+    apiGet(`${OPENF1}/session_result?session_key=${sessionKey}`, "session classification").catch(() => []),
+    apiGet(`${OPENF1}/stints?session_key=${sessionKey}`, "tyre stints").catch(() => []),
+    apiGet(`${OPENF1}/weather?session_key=${sessionKey}`, "weather").catch(() => []),
+    apiGet(`${OPENF1}/race_control?session_key=${sessionKey}`, "race control").catch(() => []),
+  ]);
+  if (!Array.isArray(drivers) || !Array.isArray(laps)) {
+    throw new Error("The API returned an unexpected response for drivers/laps. Please retry in a minute.");
+  }
+
+  // Official corner geometry — fetched live, never stored.
+  let circuit = null;
+  if (meeting && meeting.circuit_info_url) {
+    progress(0.06, "Fetching official circuit corner data…");
+    try {
+      const r = await fetch(meeting.circuit_info_url);
+      if (r.ok) circuit = await r.json();
+    } catch { circuit = null; }
+  }
+
+  // driver lookup
+  const driverInfo = new Map();
+  for (const d of drivers) {
+    if (!driverInfo.has(d.driver_number)) {
+      driverInfo.set(d.driver_number, {
+        number: d.driver_number,
+        acronym: d.name_acronym || `#${d.driver_number}`,
+        name: d.full_name || d.broadcast_name || `Driver ${d.driver_number}`,
+        team: d.team_name || "Unknown",
+        colour: teamColor(d.team_colour),
+        img: d.headshot_url || "",
+      });
+    }
+  }
+
+  // stints lookup (tyre compound per lap + race-pace stints)
+  const stintsByDriver = new Map();
+  for (const s of (Array.isArray(stints) ? stints : [])) {
+    if (s == null || s.driver_number == null) continue;
+    if (!stintsByDriver.has(s.driver_number)) stintsByDriver.set(s.driver_number, []);
+    stintsByDriver.get(s.driver_number).push({
+      compound: s.compound || "Unknown",
+      lap_start: s.lap_start ?? 0, lap_end: s.lap_end ?? 999,
+      tyre_age_at_start: s.tyre_age_at_start,
+    });
+  }
+
+  // best (non-pit-out) lap per driver
+  const bestByDriver = new Map();
+  for (const lap of laps) {
+    if (lap.lap_duration == null || !(lap.lap_duration > 0)) continue;
+    if (lap.is_pit_out_lap) continue;
+    const cur = bestByDriver.get(lap.driver_number);
+    if (!cur || lap.lap_duration < cur.lap_duration) bestByDriver.set(lap.driver_number, lap);
+  }
+  let ranked = [...bestByDriver.entries()]
+    .filter(([num]) => driverInfo.has(num))
+    .sort((a, b) => a[1].lap_duration - b[1].lap_duration);
+  if (ranked.length === 0) throw new Error("No timed laps found for this session yet. The session may not have started or data may still be publishing.");
+
+  ranked = ranked.slice(0, Math.min(driverLimit, ranked.length));
+
+  // per-driver telemetry for their best lap window
+  const traces = new Map(); // driver_number -> {trace, topSpeed, avgSpeed, lap}
+  let done = 0;
+  for (const [num, lap] of ranked) {
+    done++;
+    const acr = driverInfo.get(num).acronym;
+    progress(0.06 + 0.7 * (done / ranked.length), `Fetching best-lap telemetry for ${acr} (${done}/${ranked.length})…`);
+    const start = new Date(lap.date_start);
+    const from = new Date(start.getTime() - 2000).toISOString();
+    const to = new Date(start.getTime() + lap.lap_duration * 1000 + 3000).toISOString();
+    const url = `${OPENF1}/car_data?session_key=${sessionKey}&driver_number=${num}` +
+      `&date>${encodeURIComponent(from)}&date<${encodeURIComponent(to)}`;
+    let rows;
+    try {
+      rows = await apiGet(url, `telemetry for ${acr}`);
+    } catch (e) {
+      console.warn(`Skipping ${acr}: ${e.message}`);
+      continue;
+    }
+    if (!Array.isArray(rows) || rows.length === 0) { console.warn(`Skipping ${acr}: empty telemetry response`); continue; }
+    const pts = rows
+      .filter((r) => r && Number.isFinite(r.speed) && Number.isFinite(Date.parse(r.date)))
+      .map((r) => ({ t: Date.parse(r.date), speed: r.speed }));
+    const trace = speedToProgressTrace(pts);
+    if (!trace) { console.warn(`Skipping ${acr}: not enough telemetry points`); continue; }
+    let top = 0, sum = 0;
+    for (const v of trace) { top = Math.max(top, v); sum += v; }
+    traces.set(num, { trace, topSpeed: top, avgSpeed: sum / trace.length, lap });
+  }
+  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting — wait a minute and retry, or analyze fewer drivers.");
+
+  // reference = fastest analyzed lap
+  const refNum = [...traces.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration)[0][0];
+
+  progress(0.8, "Detecting corners & ranking every turn…");
+  await sleep(30);
+  let corners = circuit ? mapOfficialCorners(circuit) : null;
+  const cornerSource = corners ? "official" : "auto-detected";
+  if (!corners) corners = detectCornersFromSpeed(traces.get(refNum).trace);
+  if (corners.length === 0) throw new Error("Could not identify corners on this circuit from telemetry.");
+
+  // per-corner rankings
+  const cornerResults = corners.map((c) => {
+    const perDriver = [...traces.entries()].map(([num, d]) => ({ num, ...windowStats(d.trace, c.bin) }));
+    perDriver.sort((a, b) => b.avg - a.avg);
+    const best = perDriver[0].avg;
+    const withGap = perDriver.map((p) => ({ ...p, gap: best - p.avg }));
+    // team aggregates
+    const byTeam = new Map();
+    for (const p of perDriver) {
+      const t = driverInfo.get(p.num).team;
+      if (!byTeam.has(t)) byTeam.set(t, { team: t, speeds: [], colour: driverInfo.get(p.num).colour });
+      byTeam.get(t).speeds.push(p.avg);
+    }
+    const teams = [...byTeam.values()].map((t) => ({
+      ...t, avg: t.speeds.reduce((a, b) => a + b, 0) / t.speeds.length,
+    })).sort((a, b) => b.avg - a.avg);
+    return { ...c, ranking: withGap, bestTeam: teams[0], teams };
+  });
+
+  // driver aggregates (+ tyre compound of the best lap)
+  const driverStats = [...traces.entries()].map(([num, d]) => {
+    let won = 0, defSum = 0;
+    cornerResults.forEach((c) => {
+      const me = c.ranking.find((r) => r.num === num);
+      if (c.ranking[0].num === num) won++;
+      defSum += c.ranking[0].avg - me.avg;
+    });
+    return {
+      num, info: driverInfo.get(num), lap: d.lap, topSpeed: d.topSpeed, avgSpeed: d.avgSpeed,
+      won, deficit: defSum / cornerResults.length,
+      compound: compoundFor(stintsByDriver, num, d.lap.lap_number),
+    };
+  }).sort((a, b) => a.lap.lap_duration - b.lap.lap_duration);
+
+  // team aggregates
+  const teamMap = new Map();
+  for (const ds of driverStats) {
+    const t = ds.info.team;
+    if (!teamMap.has(t)) teamMap.set(t, { team: t, colour: ds.info.colour, drivers: [], laps: [], won: 0, cornerAvgs: [] });
+    teamMap.get(t).drivers.push(ds);
+    teamMap.get(t).laps.push(ds.lap.lap_duration);
+  }
+  for (const c of cornerResults) {
+    for (const t of c.teams) {
+      const entry = teamMap.get(t.team);
+      if (entry) { entry.cornerAvgs.push(t.avg); if (c.bestTeam.team === t.team) entry.won++; }
+    }
+  }
+  const teamStats = [...teamMap.values()].map((t) => {
+    const avgLap = t.laps.reduce((a, b) => a + b, 0) / t.laps.length;
+    const avgCorner = t.cornerAvgs.length ? t.cornerAvgs.reduce((a, b) => a + b, 0) / t.cornerAvgs.length : 0;
+    // strongest turn = smallest deficit to the corner-best average
+    let strong = null, strongGap = Infinity;
+    cornerResults.forEach((c) => {
+      const mine = c.teams.find((x) => x.team === t.team);
+      if (!mine) return;
+      const gap = c.bestTeam.avg - mine.avg;
+      if (gap < strongGap) { strongGap = gap; strong = c.number; }
+    });
+    return { ...t, avgLap, avgCorner, strongest: strong };
+  }).sort((a, b) => b.won - a.won || b.avgCorner - a.avgCorner);
+
+  // race pace (Race / Sprint only — needs full-lap stint data)
+  const stype = session.session_type || "";
+  const pace = (/race|sprint/i.test(stype) && !/qualif/i.test(stype)) ? computePace(laps, stintsByDriver) : [];
+
+  return {
+    session, meeting, driverStats, teamStats, cornerResults, traces, driverInfo,
+    classification, cornerSource, circuit, weatherSum: summarizeWeather(weather),
+    flagEvents: summarizeFlags(raceControl), pace,
+  };
+}
+
+/* =====================================================================
  * MAIN ANALYSIS — only the selected session
  * ===================================================================== */
 async function runAnalysis() {
@@ -337,161 +657,16 @@ async function runAnalysis() {
   locked.forEach((id) => { wasEnabled[id] = !$(id).disabled; $(id).disabled = true; });
 
   try {
-    setStatus("Fetching session overview (drivers, laps, classification)…", 0.03);
-    const [drivers, laps, classification] = await Promise.all([
-      apiGet(`${OPENF1}/drivers?session_key=${sessionKey}`, "drivers"),
-      apiGet(`${OPENF1}/laps?session_key=${sessionKey}`, "laps"),
-      apiGet(`${OPENF1}/session_result?session_key=${sessionKey}`, "session classification").catch(() => []),
-    ]);
-    if (!Array.isArray(drivers) || !Array.isArray(laps)) {
-      throw new Error("The API returned an unexpected response for drivers/laps. Please retry in a minute.");
-    }
-
-    // Official corner geometry — fetched live, never stored.
-    let circuit = null;
-    if (meeting && meeting.circuit_info_url) {
-      setStatus("Fetching official circuit corner data…", 0.06);
-      try {
-        const r = await fetch(meeting.circuit_info_url);
-        if (r.ok) circuit = await r.json();
-      } catch { circuit = null; }
-    }
-
-    // driver lookup
-    const driverInfo = new Map();
-    for (const d of drivers) {
-      if (!driverInfo.has(d.driver_number)) {
-        driverInfo.set(d.driver_number, {
-          number: d.driver_number,
-          acronym: d.name_acronym || `#${d.driver_number}`,
-          name: d.full_name || d.broadcast_name || `Driver ${d.driver_number}`,
-          team: d.team_name || "Unknown",
-          colour: teamColor(d.team_colour),
-        });
-      }
-    }
-
-    // best (non-pit-out) lap per driver
-    const bestByDriver = new Map();
-    for (const lap of laps) {
-      if (lap.lap_duration == null || !(lap.lap_duration > 0)) continue;
-      if (lap.is_pit_out_lap) continue;
-      const cur = bestByDriver.get(lap.driver_number);
-      if (!cur || lap.lap_duration < cur.lap_duration) bestByDriver.set(lap.driver_number, lap);
-    }
-    let ranked = [...bestByDriver.entries()]
-      .filter(([num]) => driverInfo.has(num))
-      .sort((a, b) => a[1].lap_duration - b[1].lap_duration);
-    if (ranked.length === 0) throw new Error("No timed laps found for this session yet. The session may not have started or data may still be publishing.");
-
-    ranked = ranked.slice(0, Math.min(driverLimit, ranked.length));
-
-    // per-driver telemetry for their best lap window
-    const traces = new Map(); // driver_number -> {trace, topSpeed, avgSpeed, lap}
-    let done = 0;
-    for (const [num, lap] of ranked) {
-      done++;
-      const acr = driverInfo.get(num).acronym;
-      setStatus(`Fetching best-lap telemetry for ${acr} (${done}/${ranked.length})…`, 0.06 + 0.7 * (done / ranked.length));
-      const start = new Date(lap.date_start);
-      const from = new Date(start.getTime() - 2000).toISOString();
-      const to = new Date(start.getTime() + lap.lap_duration * 1000 + 3000).toISOString();
-      const url = `${OPENF1}/car_data?session_key=${sessionKey}&driver_number=${num}` +
-        `&date>${encodeURIComponent(from)}&date<${encodeURIComponent(to)}`;
-      let rows;
-      try {
-        rows = await apiGet(url, `telemetry for ${acr}`);
-      } catch (e) {
-        console.warn(`Skipping ${acr}: ${e.message}`);
-        continue;
-      }
-      if (!Array.isArray(rows) || rows.length === 0) { console.warn(`Skipping ${acr}: empty telemetry response`); continue; }
-      const pts = rows
-        .filter((r) => r && Number.isFinite(r.speed) && Number.isFinite(Date.parse(r.date)))
-        .map((r) => ({ t: Date.parse(r.date), speed: r.speed }));
-      const trace = speedToProgressTrace(pts);
-      if (!trace) { console.warn(`Skipping ${acr}: not enough telemetry points`); continue; }
-      let top = 0, sum = 0;
-      for (const v of trace) { top = Math.max(top, v); sum += v; }
-      traces.set(num, { trace, topSpeed: top, avgSpeed: sum / trace.length, lap });
-    }
-    if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting — wait a minute and retry, or analyze fewer drivers.");
-
-    // reference = fastest analyzed lap
-    const refNum = [...traces.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration)[0][0];
-
-    setStatus("Detecting corners & ranking every turn…", 0.8);
-    await sleep(30);
-    let corners = circuit ? mapOfficialCorners(circuit) : null;
-    const cornerSource = corners ? "official" : "auto-detected";
-    if (!corners) corners = detectCornersFromSpeed(traces.get(refNum).trace);
-    if (corners.length === 0) throw new Error("Could not identify corners on this circuit from telemetry.");
-
-    // per-corner rankings
-    const cornerResults = corners.map((c) => {
-      const perDriver = [...traces.entries()].map(([num, d]) => ({ num, ...windowStats(d.trace, c.bin) }));
-      perDriver.sort((a, b) => b.avg - a.avg);
-      const best = perDriver[0].avg;
-      const withGap = perDriver.map((p) => ({ ...p, gap: best - p.avg }));
-      // team aggregates
-      const byTeam = new Map();
-      for (const p of perDriver) {
-        const t = driverInfo.get(p.num).team;
-        if (!byTeam.has(t)) byTeam.set(t, { team: t, speeds: [], colour: driverInfo.get(p.num).colour });
-        byTeam.get(t).speeds.push(p.avg);
-      }
-      const teams = [...byTeam.values()].map((t) => ({
-        ...t, avg: t.speeds.reduce((a, b) => a + b, 0) / t.speeds.length,
-      })).sort((a, b) => b.avg - a.avg);
-      return { ...c, ranking: withGap, bestTeam: teams[0], teams };
-    });
-
-    // driver aggregates
-    const driverStats = [...traces.entries()].map(([num, d]) => {
-      let won = 0, defSum = 0;
-      cornerResults.forEach((c) => {
-        const me = c.ranking.find((r) => r.num === num);
-        if (c.ranking[0].num === num) won++;
-        defSum += c.ranking[0].avg - me.avg;
-      });
-      return { num, info: driverInfo.get(num), lap: d.lap, topSpeed: d.topSpeed, avgSpeed: d.avgSpeed, won, deficit: defSum / cornerResults.length };
-    }).sort((a, b) => a.lap.lap_duration - b.lap.lap_duration);
-
-    // team aggregates
-    const teamMap = new Map();
-    for (const ds of driverStats) {
-      const t = ds.info.team;
-      if (!teamMap.has(t)) teamMap.set(t, { team: t, colour: ds.info.colour, drivers: [], laps: [], won: 0, cornerAvgs: [] });
-      teamMap.get(t).drivers.push(ds);
-      teamMap.get(t).laps.push(ds.lap.lap_duration);
-    }
-    for (const c of cornerResults) {
-      for (const t of c.teams) {
-        const entry = teamMap.get(t.team);
-        if (entry) { entry.cornerAvgs.push(t.avg); if (c.bestTeam.team === t.team) entry.won++; }
-      }
-    }
-    const teamStats = [...teamMap.values()].map((t) => {
-      const avgLap = t.laps.reduce((a, b) => a + b, 0) / t.laps.length;
-      const avgCorner = t.cornerAvgs.length ? t.cornerAvgs.reduce((a, b) => a + b, 0) / t.cornerAvgs.length : 0;
-      // strongest turn = smallest deficit to the corner-best average
-      let strong = null, strongGap = Infinity;
-      cornerResults.forEach((c) => {
-        const mine = c.teams.find((x) => x.team === t.team);
-        if (!mine) return;
-        const gap = c.bestTeam.avg - mine.avg;
-        if (gap < strongGap) { strongGap = gap; strong = c.number; }
-      });
-      return { ...t, avgLap, avgCorner, strongest: strong };
-    }).sort((a, b) => b.won - a.won || b.avgCorner - a.avgCorner);
-
-    state.analysis = { session, meeting, driverStats, teamStats, cornerResults, traces, driverInfo, classification, cornerSource, circuit };
+    const a = await analyzeSessionData(sessionKey, session, meeting, driverLimit,
+      (frac, text) => setStatus(text, frac));
+    state.analysis = a;
+    saveShareHash();
 
     setStatus("Rendering…", 0.95);
     await sleep(30);
     await renderAll();
     $("results").hidden = false;
-    setStatus(`Done — analyzed ${traces.size} drivers over ${cornerResults.length} corners (${cornerSource} apexes). Only the selected session was analyzed.`, 1);
+    setStatus(`Done — analyzed ${a.driverStats.length} drivers over ${a.cornerResults.length} corners (${a.cornerSource} apexes). Only the selected session was analyzed.`, 1);
   } catch (e) {
     console.error(e);
     showError((e && e.message) || String(e));
@@ -507,12 +682,29 @@ async function runAnalysis() {
 async function renderAll() {
   const a = state.analysis;
   renderSummary(a);
+  renderContext(a);
   renderCornerTable(a);
   renderDriverTable(a);
   renderTeamTable(a);
+  renderSectorTable(a);
+  renderPace(a);
   await renderTrackMap(a);
-  renderSpeedChart(a);
+  renderSpeedChart(a, null);
   renderClassification(a);
+  populateH2H(a);
+  renderH2H();
+}
+
+function pillFor(compound) {
+  const c = String(compound || "Unknown").toUpperCase();
+  const cls = c === "SOFT" ? "pill-soft" : c === "MEDIUM" ? "pill-medium" : c === "HARD" ? "pill-hard" : "pill-unknown";
+  const label = c === "SOFT" ? "SOFT" : c === "MEDIUM" ? "MED" : c === "HARD" ? "HARD" : c === "Unknown" ? "—" : esc(compound);
+  return `<span class="pill ${cls}">${label}</span>`;
+}
+function portraitFor(info, size) {
+  if (!info || !info.img) return "";
+  const px = size || 26;
+  return `<img class="portrait" style="width:${px}px;height:${px}px" loading="lazy" src="${esc(info.img)}" alt="" onerror="this.remove()" />`;
 }
 
 function renderSummary(a) {
@@ -535,22 +727,25 @@ function renderSummary(a) {
 function renderCornerTable(a) {
   const tb = $$("#cornerTable tbody");
   tb.innerHTML = "";
-  for (const c of a.cornerResults) {
+  a.cornerResults.forEach((c, idx) => {
     const best = c.ranking[0];
     const bd = a.driverInfo.get(best.num);
     const top3 = c.ranking.slice(0, 3)
       .map((r) => `${esc(a.driverInfo.get(r.num).acronym)}${r.gap > 0.0005 ? ` (+${r.gap.toFixed(1)})` : ""}`)
       .join(", ");
     const tr = document.createElement("tr");
+    tr.id = `corner-row-${idx}`;
     tr.innerHTML =
       `<td class="best-cell">T${c.number}${c.official ? "" : "*"}</td>` +
       `<td class="num">${(100 * c.bin / (N_BINS - 1)).toFixed(1)}%</td>` +
-      `<td><span class="swatch" style="background:${bd.colour}"></span><span class="best-cell">${esc(bd.acronym)}</span></td>` +
+      `<td>${portraitFor(bd)}<span class="swatch" style="background:${bd.colour}"></span><span class="best-cell">${esc(bd.acronym)}</span></td>` +
       `<td class="num">${best.avg.toFixed(1)} km/h <span style="color:var(--muted)">(min ${best.min.toFixed(0)})</span></td>` +
       `<td><span class="swatch" style="background:${c.bestTeam.colour}"></span>${esc(c.bestTeam.team)}</td>` +
       `<td>${top3}</td>`;
+    tr.addEventListener("mouseenter", () => { state.highlightBin = c.bin; redrawStaticMap(); });
+    tr.addEventListener("mouseleave", () => { state.highlightBin = null; redrawStaticMap(); });
     tb.appendChild(tr);
-  }
+  });
 }
 
 function renderDriverTable(a) {
@@ -559,9 +754,10 @@ function renderDriverTable(a) {
   for (const d of a.driverStats) {
     const tr = document.createElement("tr");
     tr.innerHTML =
-      `<td><span class="swatch" style="background:${d.info.colour}"></span><span class="best-cell">${esc(d.info.acronym)}</span> <span style="color:var(--muted)">${esc(d.info.name)}</span></td>` +
+      `<td>${portraitFor(d.info)}<span class="swatch" style="background:${d.info.colour}"></span><span class="best-cell">${esc(d.info.acronym)}</span> <span style="color:var(--muted)">${esc(d.info.name)}</span></td>` +
       `<td>${esc(d.info.team)}</td>` +
       `<td class="num">${fmtLap(d.lap.lap_duration)}</td>` +
+      `<td>${pillFor(d.compound)}</td>` +
       `<td class="num">${d.topSpeed.toFixed(0)} km/h</td>` +
       `<td class="num">${d.avgSpeed.toFixed(1)} km/h</td>` +
       `<td class="num">${d.won}${d.won > 0 ? `<span class="tag">BEST</span>` : ""}</td>` +
@@ -645,9 +841,30 @@ async function renderTrackMap(a) {
   }
   const pad = 60, W = canvas.width, H = canvas.height;
   const sc = Math.min((W - 2 * pad) / Math.max(1e-9, maxX - minX), (H - 2 * pad) / Math.max(1e-9, maxY - minY));
-  const px = (i) => pad + (x[i] - minX) * sc + ((W - 2 * pad) - (maxX - minX) * sc) / 2;
-  const py = (i) => pad + (maxY - y[i]) * sc + ((H - 2 * pad) - (maxY - minY) * sc) / 2;
+  const PX = new Float64Array(n), PY = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    PX[i] = pad + (x[i] - minX) * sc + ((W - 2 * pad) - (maxX - minX) * sc) / 2;
+    PY[i] = pad + (maxY - y[i]) * sc + ((H - 2 * pad) - (maxY - minY) * sc) / 2;
+  }
+  state.mapShape = { PX, PY, n };
+  stopReplay();
+  drawTrackMap(a, null);
+  $("mapLegend").innerHTML = [...new Map(a.teamStats.map((t) => [t.team, t.colour])).entries()]
+    .map(([t, col]) => `<span><span class="swatch" style="background:${col}"></span>${esc(t)}</span>`).join("");
+}
 
+function cornerPixel(c, shape) {
+  const i = Math.max(0, Math.min(shape.n - 1, Math.round((c.bin / (N_BINS - 1)) * (shape.n - 1))));
+  return { x: shape.PX[i], y: shape.PY[i] };
+}
+
+function drawTrackMap(a, highlightBin) {
+  const canvas = $("trackMap");
+  const ctx = canvas.getContext("2d");
+  const shape = state.mapShape;
+  if (!shape) return;
+  const { PX, PY, n } = shape;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   // fastest team per bin -> segment colours
   const SEGS = 240;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -672,40 +889,89 @@ async function renderTrackMap(a) {
     const i0 = Math.floor((sgm / SEGS) * (n - 1));
     const i1 = Math.floor(((sgm + 1) / SEGS) * (n - 1));
     ctx.strokeStyle = colour; ctx.lineWidth = 7;
-    ctx.beginPath(); ctx.moveTo(px(i0), py(i0)); ctx.lineTo(px(i1), py(i1)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PX[i0], PY[i0]); ctx.lineTo(PX[i1], PY[i1]); ctx.stroke();
   }
   // corner apex markers
+  state.apexPixels = a.cornerResults.map((c, idx) => ({ ...cornerPixel(c, shape), idx, bin: c.bin }));
   ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  for (const c of a.cornerResults) {
-    const i = Math.round((c.bin / (N_BINS - 1)) * (n - 1));
+  state.apexPixels.forEach((ap, k) => {
+    const c = a.cornerResults[k];
+    if (highlightBin != null && c.bin === highlightBin) {
+      ctx.strokeStyle = "#ffd34d"; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.arc(ap.x, ap.y, 19, 0, 7); ctx.stroke();
+    }
     ctx.fillStyle = "#0b0e14";
-    ctx.beginPath(); ctx.arc(px(i), py(i), 13, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(ap.x, ap.y, 13, 0, 7); ctx.fill();
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(px(i), py(i), 13, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ap.x, ap.y, 13, 0, 7); ctx.stroke();
     ctx.fillStyle = "#fff";
-    ctx.fillText(String(c.number), px(i), py(i));
+    ctx.fillText(String(c.number), ap.x, ap.y);
+  });
+  // cache the static frame for instant redraws + replay background
+  try {
+    if (!state.mapCache || state.mapCache.width !== canvas.width) {
+      state.mapCache = document.createElement("canvas");
+      state.mapCache.width = canvas.width; state.mapCache.height = canvas.height;
+    }
+    state.mapCache.getContext("2d").drawImage(canvas, 0, 0);
+  } catch { /* non-browser env */ }
+}
+
+function redrawStaticMap() {
+  const a = state.analysis;
+  if (!a || !state.mapShape || replay.on) return;
+  drawTrackMap(a, state.highlightBin);
+}
+
+function onTrackClick(ev) {
+  const a = state.analysis;
+  if (!a || !state.apexPixels.length) return;
+  const rect = $("trackMap").getBoundingClientRect();
+  const scaleX = $("trackMap").width / Math.max(1, rect.width);
+  const scaleY = $("trackMap").height / Math.max(1, rect.height);
+  const mx = (ev.clientX - rect.left) * scaleX, my = (ev.clientY - rect.top) * scaleY;
+  let best = null, bestD = 26 * 26;
+  for (const ap of state.apexPixels) {
+    const d = (ap.x - mx) * (ap.x - mx) + (ap.y - my) * (ap.y - my);
+    if (d < bestD) { bestD = d; best = ap; }
   }
-  $("mapLegend").innerHTML = [...new Map(a.teamStats.map((t) => [t.team, t.colour])).entries()]
-    .map(([t, col]) => `<span><span class="swatch" style="background:${col}"></span>${esc(t)}</span>`).join("");
+  if (!best) return;
+  const row = document.getElementById(`corner-row-${best.idx}`);
+  if (!row) return;
+  row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  row.classList.remove("flash");
+  void row.offsetWidth; // restart the CSS animation
+  row.classList.add("flash");
+  setTimeout(() => row.classList.remove("flash"), 2100);
 }
 
 /* ---- speed traces ---- */
-function renderSpeedChart(a) {
+let chartVisible = new Set();
+function renderSpeedChart(a, preset) {
   const box = $("traceToggles");
   box.innerHTML = "";
   const sorted = [...a.driverStats].sort((x, y) => x.lap.lap_duration - y.lap.lap_duration);
-  const visible = new Set(sorted.slice(0, 6).map((d) => d.num));
+  const nums = sorted.map((d) => d.num);
+  const initial = Array.isArray(preset) && preset.length
+    ? preset.filter((n) => nums.includes(n))
+    : sorted.slice(0, 6).map((d) => d.num);
+  chartVisible = new Set(initial.length ? initial : nums.slice(0, 1));
   for (const d of sorted) {
     const lab = document.createElement("label");
-    lab.innerHTML = `<input type="checkbox" ${visible.has(d.num) ? "checked" : ""} />` +
-      `<span class="swatch" style="background:${d.info.colour}"></span>${esc(d.info.acronym)}`;
-    lab.querySelector("input").addEventListener("change", (e) => {
-      e.target.checked ? visible.add(d.num) : visible.delete(d.num);
-      drawSpeedChart(a, visible);
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = chartVisible.has(d.num);
+    cb.addEventListener("change", (e) => {
+      e.target.checked ? chartVisible.add(d.num) : chartVisible.delete(d.num);
+      drawSpeedChart(a, chartVisible);
     });
+    lab.appendChild(cb);
+    const span = document.createElement("span");
+    span.innerHTML = `<span class="swatch" style="background:${d.info.colour}"></span>${esc(d.info.acronym)}`;
+    lab.appendChild(span);
     box.appendChild(lab);
   }
-  drawSpeedChart(a, visible);
+  drawSpeedChart(a, chartVisible);
 }
 
 function drawSpeedChart(a, visible) {
@@ -773,16 +1039,318 @@ function renderClassification(a) {
     return;
   }
   for (const r of rows) {
-    const info = a.driverInfo.get(r.driver_number) || { acronym: `#${r.driver_number}`, name: "", team: "", colour: "#999" };
+    const info = a.driverInfo.get(r.driver_number) || { acronym: `#${r.driver_number}`, name: "", team: "", colour: "#999", img: "" };
     const dur = Array.isArray(r.duration) ? r.duration.filter(Boolean).join(" / ") : r.duration;
     const tr = document.createElement("tr");
     tr.innerHTML = `<td class="num">${r.position ?? "—"}</td>` +
-      `<td><span class="swatch" style="background:${info.colour}"></span>${esc(info.acronym)} <span style="color:var(--muted)">${esc(info.name)}</span></td>` +
+      `<td>${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span>${esc(info.acronym)} <span style="color:var(--muted)">${esc(info.name)}</span></td>` +
       `<td>${esc(info.team)}</td>` +
       `<td class="num">${dur != null && dur !== "" ? (typeof dur === "number" ? fmtLap(dur) : esc(dur)) : "—"}</td>` +
       `<td class="num">${r.number_of_laps ?? "—"}</td>`;
     tb.appendChild(tr);
   }
+}
+
+/* ---------------- context strip: weather + flags ---------------- */
+function renderContext(a) {
+  const box = $("contextStrip");
+  const chips = [];
+  const w = a.weatherSum;
+  if (w) {
+    if (w.track) chips.push(`<span class="chip">🌡️ <b>Track</b> ${w.track[0].toFixed(1)}–${w.track[1].toFixed(1)}°C</span>`);
+    if (w.air) chips.push(`<span class="chip">🌡️ <b>Air</b> ${w.air[0].toFixed(1)}–${w.air[1].toFixed(1)}°C</span>`);
+    if (w.windMax != null) chips.push(`<span class="chip">💨 <b>Wind</b> up to ${w.windMax.toFixed(1)} m/s</span>`);
+    chips.push(w.rain
+      ? `<span class="chip">🌧️ <b>Rain detected</b> during session</span>`
+      : `<span class="chip">☀️ <b>Dry</b> session</span>`);
+  }
+  const flags = a.flagEvents || [];
+  for (const f of flags.slice(0, 6)) {
+    chips.push(`<span class="chip">🚩 <b>${esc(f.flag)}</b> ${esc(f.t)} <span style="color:var(--muted)">${esc(f.msg.slice(0, 60))}</span></span>`);
+  }
+  if (flags.length > 6) chips.push(`<span class="chip">+${flags.length - 6} more flag/safety-car events</span>`);
+  box.innerHTML = chips.join("") || `<span class="chip">No weather / race-control data published for this session.</span>`;
+}
+
+/* ---------------- sectors & speed traps ---------------- */
+function renderSectorTable(a) {
+  const tb = $$("#sectorTable tbody");
+  tb.innerHTML = "";
+  for (const d of a.driverStats) {
+    const L = d.lap;
+    const s = (v) => (v == null || !isFinite(v) ? "—" : v.toFixed(3));
+    const v = (x) => (x == null || !isFinite(x) ? "—" : `${x} km/h`);
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${portraitFor(d.info)}<span class="best-cell">${esc(d.info.acronym)}</span></td>` +
+      `<td class="num">${s(L.duration_sector_1)}</td>` +
+      `<td class="num">${s(L.duration_sector_2)}</td>` +
+      `<td class="num">${s(L.duration_sector_3)}</td>` +
+      `<td class="num">${fmtLap(L.lap_duration)}</td>` +
+      `<td class="num">${v(L.i1_speed)}</td>` +
+      `<td class="num">${v(L.i2_speed)}</td>` +
+      `<td class="num">${v(L.st_speed)}</td>` +
+      `<td>${pillFor(d.compound)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+/* ---------------- race pace & degradation ---------------- */
+function renderPace(a) {
+  const card = $("racePaceCard");
+  const tb = $$("#paceTable tbody");
+  tb.innerHTML = "";
+  if (!a.pace || a.pace.length === 0) { card.hidden = true; return; }
+  card.hidden = false;
+  for (const p of a.pace) {
+    const info = a.driverInfo.get(p.num) || { acronym: `#${p.num}`, colour: "#999" };
+    const deg = `${p.slope >= 0 ? "+" : ""}${p.slope.toFixed(3)}`;
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span><span class="best-cell">${esc(info.acronym)}</span></td>` +
+      `<td class="num">${p.stint}</td>` +
+      `<td>${pillFor(p.compound)} <span style="color:var(--muted)">age ${esc(p.age)}</span></td>` +
+      `<td class="num">${p.n}</td>` +
+      `<td class="num">${fmtLap(p.avg)}</td>` +
+      `<td class="num">${deg}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+/* ---------------- head-to-head ---------------- */
+function populateH2H(a) {
+  for (const id of ["h2hA", "h2hB"]) {
+    const sel = $(id);
+    sel.innerHTML = "";
+    for (const d of a.driverStats) {
+      const o = document.createElement("option");
+      o.value = d.num;
+      o.textContent = `${d.info.acronym} — ${d.info.team} (${fmtLap(d.lap.lap_duration)})`;
+      sel.appendChild(o);
+    }
+  }
+  if (a.driverStats.length >= 2) {
+    $("h2hA").value = String(a.driverStats[0].num);
+    $("h2hB").value = String(a.driverStats[1].num);
+  }
+}
+function renderH2H() {
+  const a = state.analysis;
+  const box = $("h2hResult");
+  if (!a) return;
+  const na = parseInt($("h2hA").value, 10), nb = parseInt($("h2hB").value, 10);
+  const A = a.driverStats.find((d) => d.num === na), B = a.driverStats.find((d) => d.num === nb);
+  if (!A || !B) { box.innerHTML = `<p class="hint">Select two drivers to compare.</p>`; return; }
+  if (na === nb) { box.innerHTML = `<p class="hint">Pick two <strong>different</strong> drivers.</p>`; return; }
+  let wa = 0, wb = 0;
+  const rows = a.cornerResults.map((c) => {
+    const ra = c.ranking.find((r) => r.num === na), rb = c.ranking.find((r) => r.num === nb);
+    const delta = ra.avg - rb.avg; // + means A faster
+    if (delta >= 0) wa++; else wb++;
+    const win = delta >= 0 ? A : B;
+    return `<tr><td class="best-cell">T${c.number}</td>` +
+      `<td class="num">${ra.avg.toFixed(1)}</td><td class="num">${rb.avg.toFixed(1)}</td>` +
+      `<td class="num" style="color:${delta >= 0 ? "var(--good)" : "var(--accent-2)"}">${delta >= 0 ? "+" : ""}${delta.toFixed(2)}</td>` +
+      `<td><span class="swatch" style="background:${win.info.colour}"></span>${esc(win.info.acronym)}</td></tr>`;
+  }).join("");
+  const lapDelta = A.lap.lap_duration - B.lap.lap_duration;
+  box.innerHTML =
+    `<div class="chips" style="margin-bottom:10px">` +
+    `<span class="chip">${portraitFor(A.info)}<b>${esc(A.info.acronym)}</b> ${wa} corners ${pillFor(A.compond)}</span>` +
+    `<span class="chip">${portraitFor(B.info)}<b>${esc(B.info.acronym)}</b> ${wb} corners ${pillFor(B.compond)}</span>` +
+    `<span class="chip">⏱️ <b>Lap delta</b> ${lapDelta === 0 ? "dead heat" : `${esc((lapDelta > 0 ? B : A).info.acronym)} by ${Math.abs(lapDelta).toFixed(3)}s`}</span>` +
+    `</div><div class="table-scroll"><table style="min-width:420px"><thead><tr>` +
+    `<th>Turn</th><th class="num">${esc(A.info.acronym)} km/h</th><th class="num">${esc(B.info.acronym)} km/h</th>` +
+    `<th class="num">Δ (A−B)</th><th>Winner</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  // sync the main speed chart to just these two
+  renderSpeedChart(a, [na, nb]);
+}
+
+/* ---------------- weekend view ---------------- */
+async function runWeekend() {
+  const a0 = state.analysis;
+  if (!a0) return;
+  const sessions = state.sessions.filter((s) => !s.is_cancelled);
+  if (sessions.length < 2) { showError("This event has fewer than 2 sessions — nothing to compare."); return; }
+  const btn = $("weekendBtn");
+  btn.disabled = true;
+  clearError();
+  try {
+    const perSession = [];
+    let si = 0;
+    for (const s of sessions) {
+      si++;
+      try {
+        const r = await analyzeSessionData(s.session_key, a0.meeting, 5,
+          (frac, text) => setStatus(`Weekend ${si}/${sessions.length} · ${s.session_name}: ${text}`, (si - 1 + frac) / sessions.length));
+        perSession.push({ session: s, data: r });
+      } catch (e) {
+        console.warn(`Weekend: ${s.session_name} failed: ${e.message}`);
+        perSession.push({ session: s, data: null, error: (e && e.message) || String(e) });
+      }
+    }
+    renderWeekend(perSession);
+    setStatus(`Weekend view done — ${perSession.filter((p) => p.data).length}/${perSession.length} sessions analyzed.`, 1);
+  } catch (e) {
+    console.error(e);
+    showError((e && e.message) || String(e));
+  } finally {
+    btn.disabled = false;
+  }
+}
+function cornerKey(c, idx) { return c.official ? `T${c.number}` : `#${idx}`; }
+function renderWeekend(perSession) {
+  const box = $("weekendResult");
+  const ok = perSession.filter((p) => p.data);
+  if (!ok.length) { box.innerHTML = `<p class="hint">No session could be analyzed for this weekend.</p>`; return; }
+  const lines = ok.map((p) => {
+    const f = p.data.driverStats[0];
+    return `<span class="chip"><b>${esc(p.session.session_name)}</b> ${esc(f.info.acronym)} ${fmtLap(f.lap.lap_duration)} ${pillFor(f.compond)}</span>`;
+  }).join("");
+  // rows = union of corner keys in weekend order
+  const order = [];
+  for (const p of ok) {
+    p.data.cornerResults.forEach((c, idx) => {
+      const k = cornerKey(c, idx);
+      if (!order.includes(k)) order.push(k);
+    });
+  }
+  const head = `<th>Turn</th>` + ok.map((p) => `<th>${esc(p.session.session_name)}</th>`).join("");
+  const body = order.map((k) => {
+    const cells = ok.map((p) => {
+      const idx = p.data.cornerResults.findIndex((c, i) => cornerKey(c, i) === k);
+      if (idx < 0) return `<td style="color:var(--muted)">—</td>`;
+      const t = p.data.cornerResults[idx].bestTeam;
+      return `<td><span class="swatch" style="background:${t.colour}"></span>${esc(t.team)}</td>`;
+    }).join("");
+    return `<tr><td class="best-cell">${esc(k)}</td>${cells}</tr>`;
+  }).join("");
+  const failed = perSession.filter((p) => !p.data)
+    .map((p) => `<span class="chip">⚠️ ${esc(p.session.session_name)}: ${esc((p.error || "failed").slice(0, 80))}</span>`).join("");
+  box.innerHTML = `<div class="chips" style="margin-bottom:10px">${lines}${failed}</div>` +
+    `<div class="table-scroll"><table style="min-width:520px"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+/* ---------------- CSV export ---------------- */
+function downloadCSV(name, headers, rows) {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = [headers.map(q).join(","), ...rows.map((r) => r.map(q).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const el = document.createElement("a");
+  el.href = URL.createObjectURL(blob);
+  el.download = name;
+  document.body.appendChild(el);
+  el.click();
+  setTimeout(() => { try { URL.revokeObjectURL(el.href); el.remove(); } catch { /* ignore */ } }, 800);
+}
+function exportSessionCSV(which) {
+  const a = state.analysis;
+  if (!a) return;
+  const tag = `${a.session.session_name.replace(/\s+/g, "")}_${a.session.session_key}`;
+  const drv = (n) => (a.driverInfo.get(n) || {}).acronym || `#${n}`;
+  if (which === "corners") {
+    downloadCSV(`corners_${tag}.csv`,
+      ["turn", "apex_pct", "best_driver", "best_avg_kmh", "best_min_kmh", "best_team", "top3"],
+      a.cornerResults.map((c) => [
+        `T${c.number}`, (100 * c.bin / (N_BINS - 1)).toFixed(1),
+        drv(c.ranking[0].num), c.ranking[0].avg.toFixed(2), c.ranking[0].min.toFixed(1),
+        c.bestTeam.team, c.ranking.slice(0, 3).map((r) => `${drv(r.num)} (+${r.gap.toFixed(2)})`).join("; "),
+      ]));
+  } else if (which === "drivers") {
+    downloadCSV(`drivers_${tag}.csv`,
+      ["driver", "team", "best_lap_s", "tyre", "top_kmh", "avg_kmh", "corners_won", "avg_deficit_kmh"],
+      a.driverStats.map((d) => [d.info.acronym, d.info.team, d.lap.lap_duration.toFixed(3),
+        d.compound, d.topSpeed.toFixed(1), d.avgSpeed.toFixed(2), d.won, d.deficit.toFixed(3)]));
+  } else if (which === "teams") {
+    downloadCSV(`teams_${tag}.csv`,
+      ["team", "drivers", "avg_best_lap_s", "corners_won", "avg_corner_kmh", "strongest_turn"],
+      a.teamStats.map((t) => [t.team, t.drivers.map((d) => d.info.acronym).join("; "),
+        t.avgLap.toFixed(3), t.won, t.avgCorner.toFixed(2), t.strongest ?? ""]));
+  } else if (which === "sectors") {
+    downloadCSV(`sectors_${tag}.csv`,
+      ["driver", "s1_s", "s2_s", "s3_s", "best_lap_s", "i1_kmh", "i2_kmh", "st_kmh", "tyre"],
+      a.driverStats.map((d) => [d.info.acronym, d.lap.duration_sector_1 ?? "", d.lap.duration_sector_2 ?? "",
+        d.lap.duration_sector_3 ?? "", d.lap.lap_duration.toFixed(3), d.lap.i1_speed ?? "",
+        d.lap.i2_speed ?? "", d.lap.st_speed ?? "", d.compound]));
+  } else if (which === "pace") {
+    if (!a.pace || !a.pace.length) { showError("No race-pace data — run a Race or Sprint session first."); return; }
+    downloadCSV(`pace_${tag}.csv`,
+      ["driver", "stint", "compound", "tyre_age", "laps", "avg_pace_s", "deg_s_per_lap"],
+      a.pace.map((p) => [drv(p.num), p.stint, p.compound, p.age, p.n, p.avg.toFixed(3), p.slope.toFixed(4)]));
+  }
+}
+
+/* ---------------- best-lap replay on the track map ---------------- */
+const replay = { on: false, t: 0, raf: 0, last: 0, racers: [] };
+function cumTimeFor(trace, lapDuration) {
+  const n = trace.length, w = new Float64Array(n);
+  let sum = 0;
+  for (let i = 0; i < n; i++) { w[i] = 1 / Math.max(trace[i], 1); sum += w[i]; }
+  const cum = new Float64Array(n);
+  let acc = 0;
+  for (let i = 0; i < n; i++) { acc += (w[i] / sum) * lapDuration; cum[i] = acc; }
+  return cum;
+}
+function binAtTime(cum, t) {
+  let lo = 0, hi = cum.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < t) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+function toggleReplay() {
+  replay.on ? stopReplay() : startReplay();
+}
+function startReplay() {
+  const a = state.analysis;
+  if (!a || !state.mapShape || !state.mapCache) return;
+  const top = [...a.driverStats].sort((x, y) => x.lap.lap_duration - y.lap.lap_duration).slice(0, 6);
+  replay.racers = top.map((d) => ({
+    ...d, cum: cumTimeFor(a.traces.get(d.num).trace, d.lap.lap_duration),
+  }));
+  replay.t = 0;
+  replay.on = true;
+  $("replayBtn").textContent = "⏸ Stop replay";
+  const step = (ts) => {
+    if (!replay.on) return;
+    if (!replay.last) replay.last = ts;
+    const mult = parseFloat($("replaySpeed").value) || 2;
+    replay.t += ((ts - replay.last) / 1000) * mult;
+    replay.last = ts;
+    drawReplayFrame();
+    replay.raf = requestAnimationFrame(step);
+  };
+  replay.last = 0;
+  replay.raf = requestAnimationFrame(step);
+}
+function drawReplayFrame() {
+  const a = state.analysis;
+  const canvas = $("trackMap");
+  const ctx = canvas.getContext("2d");
+  if (!a || !state.mapShape || !state.mapCache) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(state.mapCache, 0, 0);
+  const { PX, PY, n } = state.mapShape;
+  ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+  for (const r of replay.racers) {
+    const t = replay.t % r.lap.lap_duration;
+    const i = Math.max(0, Math.min(n - 1, Math.round((binAtTime(r.cum, t) / (N_BINS - 1)) * (n - 1))));
+    ctx.fillStyle = r.info.colour;
+    ctx.beginPath(); ctx.arc(PX[i], PY[i], 8, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(PX[i], PY[i], 8, 0, 7); ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(r.info.acronym, PX[i] + 11, PY[i] + 4);
+  }
+  $("replayStatus").textContent = `t = ${replay.t.toFixed(1)}s · ${replay.racers.length} cars (top 6 best laps)`;
+}
+function stopReplay() {
+  if (!replay.on) return;
+  replay.on = false;
+  try { cancelAnimationFrame(replay.raf); } catch { /* ignore */ }
+  const btn = document.getElementById("replayBtn");
+  if (btn) btn.textContent = "▶ Replay best laps";
+  const st = document.getElementById("replayStatus");
+  if (st) st.textContent = "";
+  redrawStaticMap();
 }
 
 document.addEventListener("DOMContentLoaded", init);
