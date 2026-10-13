@@ -28,18 +28,19 @@
   --font-d: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   --font-b: "Barlow", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  /* Shoelace theme bridge */
-  --sl-color-primary-50: #fdeceb;
-  --sl-color-primary-100: #f9c9c6;
-  --sl-color-primary-200: #f49a94;
-  --sl-color-primary-300: #ee6a63;
-  --sl-color-primary-400: #e83a32;
+  /* Shoelace theme bridge — dark-ramp reds (light tints would blow out
+     option fills and switch fills on the dark theme) */
+  --sl-color-primary-50: #2b0603;
+  --sl-color-primary-100: #430a05;
+  --sl-color-primary-200: #631007;
+  --sl-color-primary-300: #8a150a;
+  --sl-color-primary-400: #b31b0d;
   --sl-color-primary-500: #e10600;
   --sl-color-primary-600: #c00500;
   --sl-color-primary-700: #8f0400;
   --sl-color-primary-800: #5c0300;
   --sl-color-primary-900: #380200;
-  --sl-color-primary-950: #200100;
+  --sl-color-primary-950: #1c0100;
   --sl-input-border-radius-medium: 10px;
   --sl-input-font-family: var(--font-b);
 }
@@ -144,9 +145,23 @@ sl-select::part(combobox) {
 sl-select::part(display-input), sl-select::part(display-label) { color: var(--text); font-weight: 600; }
 sl-select::part(form-control-label) { color: var(--muted); font-size: 11.5px; font-weight: 700;
   letter-spacing: 0.12em; text-transform: uppercase; }
-sl-select::part(listbox) { background: #0d1322; border: 1px solid var(--line); }
-sl-option::part(base) { color: var(--text); }
-sl-option::part(base):hover, sl-option[aria-selected="true"]::part(base) { background: rgba(225, 6, 0, 0.14); }
+sl-select::part(listbox) { background: #0d1322; border: 1px solid var(--line);
+  border-radius: 12px; padding: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+/* Full control of option rows: outbids the internals (incl. the solid
+   .option--current fill) so every state stays on-system. */
+sl-option::part(base) {
+  background-color: transparent; color: var(--text);
+  padding: 10px 14px; font-size: 14px; font-weight: 600;
+  border-radius: 8px; margin: 1px 4px;
+}
+sl-option::part(label) { white-space: normal; line-height: 1.45; }
+sl-option:hover::part(base) { background-color: rgba(225, 6, 0, 0.14); color: #fff; }
+sl-option:focus-visible::part(base) { background-color: rgba(225, 6, 0, 0.2);
+  color: #fff; outline: none; }
+sl-option[aria-selected="true"]::part(base) { background-color: rgba(225, 6, 0, 0.24); color: #fff; }
+sl-option[aria-selected="true"]::part(checked-icon) { color: var(--accent-hi); }
+sl-option[aria-disabled="true"]::part(base) { color: var(--faint); }
 sl-button::part(base) { border-radius: var(--radius-ctl); font-weight: 800; min-height: 46px; }
 sl-button[variant="primary"]::part(base) {
   background: linear-gradient(180deg, #d80700, var(--accent) 55%, var(--accent-deep));
