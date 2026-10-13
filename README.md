@@ -62,12 +62,14 @@ Results open in tabs (Overview, Track Map, Corners, Head-to-Head, Drivers & Team
 - ❓ "How this works" methodology explainer on the page
 - 🔀 **Combined practice mode**: a session-dropdown entry (Grand Prix weekends only — no pre-season testing) that pools FP1+FP2+FP3 (whichever exist) and ranks every corner on each driver's overall-best practice lap
 
-## Frontend components (pinned CDN, no build)
+## Frontend components (self-hosted, no build)
 
 - [Shoelace 2.18](https://shoelace.style/) — selects + buttons (dark theme, red primary tokens)
 - [Tabulator 6.3](http://tabulator.info/) — every data grid: sorting, rich cells, one-click CSV
 - [Apache ECharts 5.5](https://echarts.apache.org/) — speed traces with tooltips, zoom + legend filtering
 - Custom canvas — track map, duel map, best-lap replay (no library draws F1 track maps)
+
+All component files live in `vendor/` and are served with the site — no third-party CDN is required at runtime (verified with jsDelivr fully blocked). `_headers` disables caching so redeploys can never serve a stale mix of files.
 
 ## Zero-storage, live-data design
 

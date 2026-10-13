@@ -155,9 +155,16 @@ function selectOptionCount(sel) {
  * ===================================================================== */
 async function init() {
   // Shoelace upgrades sl-select asynchronously: setting .value before the
-  // definition loads is silently lost. Gate population on the definition.
+  // definition loads is silently lost. Gate population on the definition,
+  // but never deadlock: if the library is missing entirely, proceed so the
+  // boot check can explain what failed instead of hanging silently.
   try {
-    if (typeof customElements !== "undefined") await customElements.whenDefined("sl-select");
+    if (typeof customElements !== "undefined") {
+      await Promise.race([
+        customElements.whenDefined("sl-select"),
+        new Promise((r) => setTimeout(r, 8000)),
+      ]);
+    }
   } catch { /* ignore — native fallback still works */ }
   const yearSel = $("yearSelect");
   const thisYear = new Date().getFullYear();

@@ -1,0 +1,3 @@
+# Always revalidate: the app ships often and filenames are unversioned.
+/*
+  Cache-Control: no-cache

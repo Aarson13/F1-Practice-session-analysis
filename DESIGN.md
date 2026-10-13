@@ -4,6 +4,12 @@ Working design notes for the timing-screen concept. Stack: keep the
 project's own engine (static HTML + vanilla JS + canvas, zero build)
 plus three pinned CDN components: Shoelace 2.18 (controls), Tabulator 6.3
 (data grids, sorting, CSV), ECharts 5.5 (traces, zoom, legend toggles).
+All three are vendored under `vendor/` and served same-origin: the app
+fully works with third-party CDNs blocked (proven by test). Shoelace needs
+`data-shoelace="/vendor/shoelace"` on its script tag — without it, dynamic
+imports resolve against the document and 404 silently (swallowed by the
+autoloader's allSettled). Init gates on `sl-select` definition with an 8s
+timeout fallback so a missing library explains itself instead of hanging.
 Per the creative brief: borrow the rules of F1 broadcast timing graphics.
 
 ## Concept Card
