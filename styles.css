@@ -7,8 +7,8 @@
  * Type: Barlow Condensed (display, italic) + Barlow (body), tabular nums.
  * Components: Shoelace (controls, tabs) + Tabulator (grids) + ECharts,
  * all themed below to this system.
- * Perf: flat surfaces (no repaint-heavy fixed textures), content-visibility
- * on cards, debounced resize redraws in JS.
+ * Perf: flat surfaces (no repaint-heavy fixed textures). Note: no
+ * content-visibility — it breaks overlay hit-testing inside cards.
  * ===================================================================== */
 :root {
   --bg0: #090b10;
