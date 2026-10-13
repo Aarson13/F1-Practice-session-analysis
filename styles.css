@@ -1,10 +1,12 @@
 /* =====================================================================
  * F1 Session Analyzer — broadcast-timing design system
  * ---------------------------------------------------------------------
- * Shape rule (locked): cards 16px · controls/inputs 10px · pills 999px.
+ * Shape rule (locked): cards 16px · controls 10px · pills 999px.
  * Color lock: carbon neutrals + ONE accent (F1 red). Team colors appear
- * only as data (swatches, map segments, traces) — never as chrome.
+ * only as data (swatches, map segments, chart lines) — never as chrome.
  * Type: Barlow Condensed (display, italic) + Barlow (body), tabular nums.
+ * Components: Shoelace (controls) + Tabulator (grids) + ECharts (traces),
+ * all themed below to this system.
  * ===================================================================== */
 :root {
   --bg0: #07080c;
@@ -26,6 +28,20 @@
   --font-d: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   --font-b: "Barlow", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Shoelace theme bridge */
+  --sl-color-primary-50: #fdeceb;
+  --sl-color-primary-100: #f9c9c6;
+  --sl-color-primary-200: #f49a94;
+  --sl-color-primary-300: #ee6a63;
+  --sl-color-primary-400: #e83a32;
+  --sl-color-primary-500: #e10600;
+  --sl-color-primary-600: #c00500;
+  --sl-color-primary-700: #8f0400;
+  --sl-color-primary-800: #5c0300;
+  --sl-color-primary-900: #380200;
+  --sl-color-primary-950: #200100;
+  --sl-input-border-radius-medium: 10px;
+  --sl-input-font-family: var(--font-b);
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -60,10 +76,7 @@ main, .topbar { position: relative; z-index: 1; }
   background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 22%, transparent 60%);
 }
 .brand { display: flex; gap: 13px; align-items: center; }
-.brand .flag {
-  font-size: 30px; filter: saturate(1.2);
-  transform: skewX(-6deg); display: inline-block;
-}
+.brand .flag { font-size: 30px; transform: skewX(-6deg); display: inline-block; }
 .brand h1 {
   margin: 0; font-family: var(--font-d); font-style: italic; font-weight: 700;
   font-size: 25px; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1;
@@ -122,42 +135,36 @@ main { max-width: 1120px; margin: 0 auto; padding: 26px 20px 70px; }
 #results:not([hidden]) > .card:nth-child(n+5) { animation-delay: 0.2s; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-/* ---------------- controls ---------------- */
-.controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-label { display: flex; flex-direction: column; gap: 7px; font-size: 11.5px; color: var(--muted);
-  font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-select {
-  background: #0a0e18 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa5bc' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;
-  appearance: none; -webkit-appearance: none;
-  color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-ctl);
-  padding: 11px 32px 11px 13px; font-size: 14px; font-weight: 600; outline: none;
-  text-transform: none; letter-spacing: 0; cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+/* ---------------- Shoelace control theming ---------------- */
+.controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+sl-select::part(combobox) {
+  background: #0a0e18; border: 1px solid var(--line); border-radius: var(--radius-ctl);
+  min-height: 46px;
 }
-select:hover { border-color: #35436a; }
-select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(225, 6, 0, 0.28); }
-select:disabled { opacity: 0.5; cursor: not-allowed; }
-.controls-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
-.controls-row label { flex-direction: row; align-items: center; }
-button {
-  cursor: pointer; border-radius: var(--radius-ctl); font-family: var(--font-b);
-  font-size: 14px; font-weight: 800; letter-spacing: 0.02em;
-  padding: 12px 22px; border: 1px solid transparent; white-space: nowrap;
-  transition: transform 0.12s var(--ease-out), box-shadow 0.2s, filter 0.2s, background 0.2s;
-}
-button:active { transform: scale(0.98); }
-button.primary {
-  background: linear-gradient(180deg, var(--accent-hi), var(--accent) 55%, var(--accent-deep));
-  color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+sl-select::part(display-input), sl-select::part(display-label) { color: var(--text); font-weight: 600; }
+sl-select::part(form-control-label) { color: var(--muted); font-size: 11.5px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; }
+sl-select::part(listbox) { background: #0d1322; border: 1px solid var(--line); }
+sl-option::part(base) { color: var(--text); }
+sl-option::part(base):hover, sl-option[aria-selected="true"]::part(base) { background: rgba(225, 6, 0, 0.14); }
+sl-button::part(base) { border-radius: var(--radius-ctl); font-weight: 800; min-height: 46px; }
+sl-button[variant="primary"]::part(base) {
+  background: linear-gradient(180deg, #d80700, var(--accent) 55%, var(--accent-deep));
+  border-color: rgba(255, 255, 255, 0.14); color: #fff;
   box-shadow: 0 8px 22px rgba(225, 6, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
-button.primary:hover:not(:disabled) { filter: brightness(1.1); }
-button.primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
-button.ghost { background: rgba(255, 255, 255, 0.03); color: var(--text); border-color: var(--line); }
-button.ghost:hover:not(:disabled) { border-color: #3a4770; background: rgba(255, 255, 255, 0.06); }
-button.ghost:disabled { opacity: 0.45; cursor: not-allowed; }
-button.small { padding: 7px 13px; font-size: 12px; }
-button:focus-visible, select:focus-visible, a:focus-visible, input:focus-visible {
+sl-button[variant="primary"]:not([disabled])::part(base):hover { filter: brightness(1.12); }
+sl-button[variant="default"]::part(base) { background: rgba(255, 255, 255, 0.03);
+  border-color: var(--line); color: var(--text); }
+sl-button[variant="default"]:not([disabled])::part(base):hover { border-color: #3a4770;
+  background: rgba(255, 255, 255, 0.06); }
+sl-button[size="small"]::part(base) { min-height: 32px; font-size: 12px; }
+sl-button::part(base):active { transform: scale(0.98); }
+.controls-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.controls-row sl-select { min-width: 110px; }
+label { display: flex; flex-direction: column; gap: 7px; font-size: 11.5px; color: var(--muted);
+  font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+button:focus-visible, a:focus-visible, input:focus-visible {
   outline: 2px solid var(--accent-hi); outline-offset: 2px;
 }
 
@@ -193,7 +200,7 @@ button:focus-visible, select:focus-visible, a:focus-visible, input:focus-visible
 .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 
-/* ---------------- track map ---------------- */
+/* ---------------- track maps ---------------- */
 .map-wrap {
   background: radial-gradient(600px 300px at 50% 0%, rgba(64, 86, 140, 0.12), transparent 70%), #080b13;
   border: 1px solid var(--line); border-radius: 12px; padding: 10px;
@@ -202,27 +209,29 @@ button:focus-visible, select:focus-visible, a:focus-visible, input:focus-visible
 .map-wrap canvas { width: 100%; height: auto; display: block; border-radius: 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
 
-/* ---------------- tables ---------------- */
-.table-scroll {
-  overflow: auto; border: 1px solid var(--line); border-radius: 12px;
-  background: rgba(0, 0, 0, 0.22); max-height: 560px;
-  scrollbar-width: thin; scrollbar-color: #3a4770 transparent;
-}
-.table-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
-.table-scroll::-webkit-scrollbar-thumb { background: #3a4770; border-radius: 99px; }
-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; min-width: 640px; }
-thead th {
-  position: sticky; top: 0; z-index: 2;
-  text-align: left; background: #0c1120; color: var(--muted); font-size: 11px; font-weight: 800;
-  text-transform: uppercase; letter-spacing: 0.09em; padding: 11px 13px; white-space: nowrap;
-  border-bottom: 1px solid var(--line);
-}
-tbody td { padding: 9px 13px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
-tbody tr { transition: background 0.15s; }
-tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
-tbody tr:last-child td { border-bottom: none; }
-td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
-td.num { font-weight: 600; }
+/* ---------------- Tabulator grid theming ---------------- */
+.grid { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: rgba(0, 0, 0, 0.22); }
+/* NOTE: .grid.tabulator is one element (no space) — Tabulator adds its
+   class to our container. Descendant selectors below target its parts. */
+.grid.tabulator { background: transparent; border: none; font-family: var(--font-b);
+  font-size: 13.5px; color: var(--text); }
+.grid .tabulator-tableholder, .grid .tabulator-table { background: transparent; }
+/* Tabulator scopes its table bg at 0,3,0 — outbid it: */
+.grid.tabulator .tabulator-tableholder .tabulator-table { background: transparent; }
+.grid .tabulator-header { background: #0c1120; border-bottom: 1px solid var(--line); }
+.grid .tabulator-col { background: #0c1120 !important; border-right: 1px solid var(--line-soft) !important; }
+.grid .tabulator-col-title { color: var(--muted); font-size: 11px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.09em; }
+.grid .tabulator-col[aria-sort="ascending"] .tabulator-col-title::after { content: " ▲"; color: var(--accent-hi); }
+.grid .tabulator-col[aria-sort="descending"] .tabulator-col-title::after { content: " ▼"; color: var(--accent-hi); }
+.grid .tabulator-row { background: transparent; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+.grid .tabulator-row:hover { background: rgba(255, 255, 255, 0.035) !important; }
+.grid .tabulator-row.tabulator-row-even { background: rgba(255, 255, 255, 0.014); }
+.grid .tabulator-row .tabulator-cell { color: var(--text); }
+.grid .tabulator-cell { font-variant-numeric: tabular-nums; }
+.grid .tabulator-cell.flash { animation: rowflash 2s; }
+@keyframes rowflash { 0%, 40% { background: rgba(225, 6, 0, 0.3); } 100% { background: transparent; } }
+.grid .tabulator-footer { background: #0c1120; border-top: 1px solid var(--line); color: var(--faint); }
 .best-cell { font-weight: 800; }
 .tag { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em;
   padding: 2px 9px; border-radius: 99px; margin-left: 7px;
@@ -238,19 +247,12 @@ td.num { font-weight: 600; }
 .pill-medium { background: rgba(255, 176, 32, 0.14); color: var(--warn); border-color: rgba(255, 176, 32, 0.45); }
 .pill-hard { background: rgba(230, 230, 230, 0.1); color: #e2e7f2; border-color: rgba(230, 230, 230, 0.3); }
 .pill-unknown { background: transparent; color: var(--faint); }
-tr.flash td { animation: rowflash 2s; }
-@keyframes rowflash { 0%, 40% { background: rgba(225, 6, 0, 0.3); } 100% { background: transparent; } }
 
-/* ---------------- toggles / explainer ---------------- */
-.toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.toggles label {
-  flex-direction: row; align-items: center; gap: 7px; background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px 6px 9px;
-  font-size: 12.5px; color: var(--text); cursor: pointer; text-transform: none; letter-spacing: 0;
-  transition: border-color 0.15s, background 0.15s;
-}
-.toggles label:hover { border-color: #3a4770; }
-.toggles input { accent-color: var(--accent); width: 14px; height: 14px; }
+/* ---------------- ECharts traces ---------------- */
+.chart { height: 400px; background: #080b13; border: 1px solid var(--line);
+  border-radius: 12px; padding: 6px; box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.55); }
+
+/* ---------------- explainer ---------------- */
 .how p { color: var(--muted); font-size: 13.5px; line-height: 1.65; margin: 0 0 10px; max-width: 85ch; }
 .how strong { color: var(--text); }
 
@@ -262,8 +264,7 @@ tr.flash td { animation: rowflash 2s; }
   .topbar { padding: 10px 14px; }
   .brand h1 { font-size: 20px; }
   .powered { display: none; }
-  table { font-size: 12.5px; min-width: 560px; }
-  tbody td { padding: 8px 10px; }
+  .chart { height: 300px; }
 }
 @media (max-width: 640px) { .topbar { flex-direction: column; align-items: flex-start; } }
 

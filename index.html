@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="sl-theme-dark">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.18.0/cdn/themes/dark.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/css/tabulator.min.css" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -32,27 +34,19 @@
       Data is fetched live from <code>api.openf1.org</code> when you press Analyze.
     </p>
     <div class="controls-grid">
-      <label>Year
-        <select id="yearSelect"><option value="">Loading…</option></select>
-      </label>
-      <label>Grand Prix
-        <select id="gpSelect" disabled><option value="">Pick a year first</option></select>
-      </label>
-      <label>Session
-        <select id="sessionSelect" disabled><option value="">Pick a Grand Prix first</option></select>
-      </label>
-      <label>Drivers to analyze
-        <select id="driverLimitSelect" title="Fewer drivers = fewer live API requests = faster analysis">
-          <option value="99">All drivers</option>
-          <option value="10" selected>Top 10 (fastest laps)</option>
-          <option value="5">Top 5 (fastest laps)</option>
-        </select>
-      </label>
+      <sl-select id="yearSelect" label="Year" placeholder="Loading…"></sl-select>
+      <sl-select id="gpSelect" label="Grand Prix" placeholder="Pick a year first" disabled></sl-select>
+      <sl-select id="sessionSelect" label="Session" placeholder="Pick a Grand Prix first" disabled></sl-select>
+      <sl-select id="driverLimitSelect" label="Drivers to analyze" value="10">
+        <sl-option value="99">All drivers</sl-option>
+        <sl-option value="10">Top 10 (fastest laps)</sl-option>
+        <sl-option value="5">Top 5 (fastest laps)</sl-option>
+      </sl-select>
     </div>
     <div class="controls-row">
-      <button id="analyzeBtn" class="primary" disabled>Analyze selected session</button>
-      <button id="copyLinkBtn" class="ghost" disabled title="Copy a link that re-opens this exact analysis">🔗 Copy share link</button>
-      <button id="resetBtn" class="ghost">Reset</button>
+      <sl-button id="analyzeBtn" variant="primary" disabled>Analyze selected session</sl-button>
+      <sl-button id="copyLinkBtn" variant="default" disabled title="Copy a link that re-opens this exact analysis">🔗 Copy share link</sl-button>
+      <sl-button id="resetBtn" variant="default">Reset</sl-button>
     </div>
     <div id="statusBox" class="status" hidden>
       <div class="progress"><div id="progressBar"></div></div>
@@ -75,14 +69,12 @@
       <p class="hint">Segments coloured by the <strong>fastest team</strong> in each part of the lap.
         Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
       <div class="controls-row" style="margin:0 0 10px">
-        <button id="replayBtn" class="ghost">▶ Replay best laps</button>
-        <label style="flex-direction:row;align-items:center">Speed
-          <select id="replaySpeed" style="margin-left:6px">
-            <option value="1">1×</option>
-            <option value="2" selected>2×</option>
-            <option value="4">4×</option>
-          </select>
-        </label>
+        <sl-button id="replayBtn" variant="default">▶ Replay best laps</sl-button>
+        <sl-select id="replaySpeed" label="Speed" value="2" style="max-width:110px">
+          <sl-option value="1">1×</sl-option>
+          <sl-option value="2">2×</sl-option>
+          <sl-option value="4">4×</sl-option>
+        </sl-select>
         <span id="replayStatus" class="hint" style="margin:0"></span>
       </div>
       <div class="map-wrap">
@@ -92,73 +84,47 @@
     </section>
 
     <section class="card">
-      <div class="card-head"><h2><span class="tick"><span>04</span></span>Turn-by-turn analysis</h2><button id="cornerCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>04</span></span>Turn-by-turn analysis</h2><sl-button id="cornerCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
       <p class="hint">Each corner window (±1.2% of lap distance around the apex) is ranked by
-        <strong>average speed</strong>. Faster through the corner means better.</p>
-      <div class="table-scroll"><table id="cornerTable">
-        <thead><tr>
-          <th>Turn</th><th>Apex&nbsp;%</th><th>Best driver</th><th>Avg&nbsp;speed</th>
-          <th>Best team</th><th>Top 3 (gap)</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table></div>
+        <strong>average speed</strong>. Faster through the corner means better. Click a column header to sort.</p>
+      <div id="cornerGrid" class="grid"></div>
     </section>
 
     <section class="card">
       <h2><span class="tick"><span>05</span></span>Head-to-head</h2>
-      <p class="hint">Pick any two analyzed drivers: per-corner speed deltas across the whole lap.</p>
+      <p class="hint">Pick any two analyzed drivers: per-corner speed deltas across the whole lap, fought out on the duel map.</p>
       <div class="controls-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,220px))">
-        <label>Driver A <select id="h2hA"></select></label>
-        <label>Driver B <select id="h2hB"></select></label>
+        <sl-select id="h2hA" label="Driver A"></sl-select>
+        <sl-select id="h2hB" label="Driver B"></sl-select>
       </div>
+      <div class="map-wrap" style="margin-top:12px">
+        <canvas id="h2hMap" width="900" height="420"></canvas>
+      </div>
+      <div id="h2hLegend" class="legend"></div>
       <div id="h2hResult" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
-      <div class="card-head"><h2><span class="tick"><span>06</span></span>Driver analysis</h2><button id="driverCsvBtn" class="ghost small">⬇ CSV</button></div>
-      <div class="table-scroll"><table id="driverTable">
-        <thead><tr>
-          <th>Driver</th><th>Team</th><th>Best lap</th><th>Tyre</th><th>Top speed</th>
-          <th>Avg speed</th><th>Corners won</th><th>Avg corner deficit</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table></div>
+      <div class="card-head"><h2><span class="tick"><span>06</span></span>Driver analysis</h2><sl-button id="driverCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
+      <div id="driverGrid" class="grid"></div>
     </section>
 
     <section class="card">
-      <div class="card-head"><h2><span class="tick"><span>07</span></span>Team analysis</h2><button id="teamCsvBtn" class="ghost small">⬇ CSV</button></div>
-      <div class="table-scroll"><table id="teamTable">
-        <thead><tr>
-          <th>Team</th><th>Drivers</th><th>Avg best lap</th><th>Corners won</th>
-          <th>Avg corner speed</th><th>Strongest turn</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table></div>
+      <div class="card-head"><h2><span class="tick"><span>07</span></span>Team analysis</h2><sl-button id="teamCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
+      <div id="teamGrid" class="grid"></div>
     </section>
 
     <section class="card">
-      <div class="card-head"><h2><span class="tick"><span>08</span></span>Sectors &amp; speed traps</h2><button id="sectorCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>08</span></span>Sectors &amp; speed traps</h2><sl-button id="sectorCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
       <p class="hint">Sector splits and trap speeds from each driver's best lap (I1/I2 intermediates, ST finish-line trap).</p>
-      <div class="table-scroll"><table id="sectorTable">
-        <thead><tr>
-          <th>Driver</th><th>S1</th><th>S2</th><th>S3</th><th>Best lap</th>
-          <th>I1 trap</th><th>I2 trap</th><th>ST trap</th><th>Tyre</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table></div>
+      <div id="sectorGrid" class="grid"></div>
     </section>
 
     <section class="card" id="racePaceCard" hidden>
-      <div class="card-head"><h2><span class="tick"><span>09</span></span>Race pace &amp; tyre degradation</h2><button id="paceCsvBtn" class="ghost small">⬇ CSV</button></div>
+      <div class="card-head"><h2><span class="tick"><span>09</span></span>Race pace &amp; tyre degradation</h2><sl-button id="paceCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
       <p class="hint">Stint-average pace and degradation slope (seconds lost per lap, least-squares fit).
         Out-laps and incident laps are excluded.</p>
-      <div class="table-scroll"><table id="paceTable">
-        <thead><tr>
-          <th>Driver</th><th>Stint</th><th>Compound</th><th>Laps</th>
-          <th>Avg pace</th><th>Deg (s/lap)</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table></div>
+      <div id="paceGrid" class="grid"></div>
     </section>
 
     <section class="card">
@@ -166,24 +132,20 @@
       <p class="hint">Lite analysis (top 5 per session) of <strong>every session of this Grand Prix weekend</strong>:
         which team owned each corner, session by session. Takes a while — progress is shown above.</p>
       <div class="controls-row" style="margin-top:0">
-        <button id="weekendBtn" class="primary">Analyze full weekend</button>
+        <sl-button id="weekendBtn" variant="primary">Analyze full weekend</sl-button>
       </div>
       <div id="weekendResult" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2><span class="tick"><span>11</span></span>Speed traces — best laps overlaid</h2>
-      <p class="hint">Speed (km/h) against lap progress for each driver's best lap. Toggle drivers on/off.</p>
-      <div id="traceToggles" class="toggles"></div>
-      <div class="map-wrap"><canvas id="speedChart" width="900" height="380"></canvas></div>
+      <p class="hint">Speed (km/h) against lap progress for each driver's best lap. Click legend entries to toggle drivers; drag to zoom.</p>
+      <div id="speedChart" class="chart"></div>
     </section>
 
     <section class="card">
       <h2><span class="tick"><span>12</span></span>Official session classification</h2>
-      <div class="table-scroll"><table id="resultTable">
-        <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>Best / total</th><th>Laps</th></tr></thead>
-        <tbody></tbody>
-      </table></div>
+      <div id="resultGrid" class="grid"></div>
     </section>
 
     <section class="card">
@@ -199,6 +161,9 @@
   </section>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.18.0/cdn/shoelace-autoloader.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

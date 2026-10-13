@@ -26,7 +26,7 @@ const MIN_TELEMETRY_POINTS = 50;
 const REQUEST_SPACING_MS = 700; // stay under OpenF1 free-tier rate limits
 
 const $ = (id) => document.getElementById(id);
-const $$ = (sel) => document.querySelector(sel); // for CSS selectors (e.g. "#cornerTable tbody")
+const $$ = (sel) => document.querySelector(sel); // for CSS selectors (e.g. "#resultGrid p")
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------------- throttled fetch with timeout + retry ---------------- */
@@ -130,6 +130,26 @@ const state = {
   highlightBin: null, // corner bin spotlighted from table hover
 };
 
+/* ---------------- Shoelace select helpers ---------------- */
+function mkOption(value, text) {
+  const o = document.createElement("sl-option");
+  o.value = String(value);
+  o.textContent = text;
+  return o;
+}
+function selectValues(sel) {
+  if (sel.querySelectorAll) return [...sel.querySelectorAll("sl-option")].map((o) => o.value);
+  return [...(sel.options || [])].map((o) => o.value);
+}
+function setSelectOptions(sel, items, placeholder) {
+  sel.innerHTML = "";
+  if (placeholder) sel.appendChild(mkOption("", placeholder));
+  for (const [value, text] of items) sel.appendChild(mkOption(value, text));
+}
+function selectOptionCount(sel) {
+  return sel.querySelectorAll ? sel.querySelectorAll("sl-option").length : (sel.options || []).length;
+}
+
 /* =====================================================================
  * SELECTOR FLOW: year -> grand prix -> session (all session types)
  * ===================================================================== */
@@ -137,15 +157,11 @@ async function init() {
   const yearSel = $("yearSelect");
   const thisYear = new Date().getFullYear();
   yearSel.innerHTML = "";
-  for (let y = thisYear; y >= 2023; y--) {
-    const o = document.createElement("option");
-    o.value = y; o.textContent = y;
-    yearSel.appendChild(o);
-  }
+  for (let y = thisYear; y >= 2023; y--) yearSel.appendChild(mkOption(y, String(y)));
   yearSel.value = String(thisYear);
-  yearSel.addEventListener("change", loadMeetings);
-  $("gpSelect").addEventListener("change", loadSessions);
-  $("sessionSelect").addEventListener("change", () => {
+  yearSel.addEventListener("sl-change", loadMeetings);
+  $("gpSelect").addEventListener("sl-change", loadSessions);
+  $("sessionSelect").addEventListener("sl-change", () => {
     const has = !!$("sessionSelect").value;
     $("analyzeBtn").disabled = !has;
     $("copyLinkBtn").disabled = !has;
@@ -155,13 +171,14 @@ async function init() {
   $("weekendBtn").addEventListener("click", runWeekend);
   $("replayBtn").addEventListener("click", toggleReplay);
   $("trackMap").addEventListener("click", onTrackClick);
-  $("h2hA").addEventListener("change", renderH2H);
-  $("h2hB").addEventListener("change", renderH2H);
-  $("cornerCsvBtn").addEventListener("click", () => exportSessionCSV("corners"));
-  $("driverCsvBtn").addEventListener("click", () => exportSessionCSV("drivers"));
-  $("teamCsvBtn").addEventListener("click", () => exportSessionCSV("teams"));
-  $("sectorCsvBtn").addEventListener("click", () => exportSessionCSV("sectors"));
-  $("paceCsvBtn").addEventListener("click", () => exportSessionCSV("pace"));
+  $("h2hA").addEventListener("sl-change", renderH2H);
+  $("h2hB").addEventListener("sl-change", renderH2H);
+  $("cornerCsvBtn").addEventListener("click", () => downloadGridCSV("corner", `corners_${sessionTag()}.csv`));
+  $("driverCsvBtn").addEventListener("click", () => downloadGridCSV("driver", `drivers_${sessionTag()}.csv`));
+  $("teamCsvBtn").addEventListener("click", () => downloadGridCSV("team", `teams_${sessionTag()}.csv`));
+  $("sectorCsvBtn").addEventListener("click", () => downloadGridCSV("sector", `sectors_${sessionTag()}.csv`));
+  $("paceCsvBtn").addEventListener("click", () => downloadGridCSV("pace", `pace_${sessionTag()}.csv`));
+  window.addEventListener("resize", () => { try { if (speedChart) speedChart.resize(); } catch { /* ignore */ } });
   $("resetBtn").addEventListener("click", () => {
     $("results").hidden = true; clearError();
     $("statusBox").hidden = true; $("progressBar").style.width = "0%";
@@ -200,13 +217,17 @@ async function copyShareLink() {
 async function loadFromHash() {
   const p = Object.fromEntries(location.hash.replace(/^#/, "").split("&").map((kv) => kv.split("=")));
   if (!p.y || !p.m || !p.s) return false;
-  if (![...$("yearSelect").options].some((o) => o.value === p.y)) return false;
+  if (!selectValues($("yearSelect")).includes(p.y)) return false;
   $("yearSelect").value = p.y;
   await loadMeetings();
   if (!state.meetingByKey.has(String(p.m))) return false;
   $("gpSelect").value = String(p.m);
   await loadSessions();
-  if (!state.sessions.some((s) => String(s.session_key) === String(p.s))) return false;
+  if (String(p.s) === "COMBINED") {
+    if (practiceSessions(state.sessions).length < 2) return false;
+  } else if (!state.sessions.some((s) => String(s.session_key) === String(p.s))) {
+    return false;
+  }
   $("sessionSelect").value = String(p.s);
   $("analyzeBtn").disabled = false;
   $("copyLinkBtn").disabled = false;
@@ -224,24 +245,21 @@ async function loadMeetings() {
   try {
     const meetings = await apiGet(`${OPENF1}/meetings?year=${encodeURIComponent(year)}`, "Grand Prix list");
     if (!Array.isArray(meetings) || meetings.length === 0) {
-      gpSel.innerHTML = `<option value="">No Grands Prix found for ${esc(year)}</option>`;
+      gpSel.innerHTML = `<sl-option value="">No Grands Prix found for ${esc(year)}</sl-option>`;
       showError(`The API returned no Grands Prix for ${year}. The season may not have started yet — try an earlier year.`);
       return;
     }
     meetings.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
     state.meetings = meetings;
     state.meetingByKey = new Map(meetings.map((m) => [String(m.meeting_key), m]));
-    gpSel.innerHTML = `<option value="">— Select Grand Prix —</option>`;
+    gpSel.innerHTML = "";
     for (const m of meetings) {
       if (m.is_cancelled) continue; // nothing to analyze
-      const o = document.createElement("option");
-      o.value = m.meeting_key;
       const d = new Date(m.date_start).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-      o.textContent = `${m.meeting_name} — ${m.location} (${d})`;
-      gpSel.appendChild(o);
+      gpSel.appendChild(mkOption(m.meeting_key, `${m.meeting_name} — ${m.location} (${d})`));
     }
-    if (gpSel.options.length <= 1) {
-      gpSel.innerHTML = `<option value="">No (non-cancelled) Grands Prix for ${esc(year)}</option>`;
+    if (selectOptionCount(gpSel) === 0) {
+      gpSel.innerHTML = `<sl-option value="">No (non-cancelled) Grands Prix for ${esc(year)}</sl-option>`;
       return;
     }
     gpSel.disabled = false;
@@ -253,32 +271,44 @@ async function loadSessions() {
   const sesSel = $("sessionSelect");
   $("analyzeBtn").disabled = true;
   if (!meetingKey) { sesSel.disabled = true; return; }
-  sesSel.disabled = true; sesSel.innerHTML = `<option value="">Loading sessions…</option>`;
+  sesSel.disabled = true; sesSel.innerHTML = `<sl-option value="">Loading sessions…</sl-option>`;
   clearError();
   try {
     // ALL session types for this meeting: Practice, Qualifying, Sprint, Race…
     const sessions = await apiGet(`${OPENF1}/sessions?meeting_key=${encodeURIComponent(meetingKey)}`, "session list");
     if (!Array.isArray(sessions) || sessions.length === 0) {
-      sesSel.innerHTML = `<option value="">No sessions found for this event</option>`;
+      sesSel.innerHTML = `<sl-option value="">No sessions found for this event</sl-option>`;
       showError("The API returned no sessions for this Grand Prix. It may be too far in the future.");
       return;
     }
     sessions.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
     state.sessions = sessions.filter((s) => !s.is_cancelled);
     if (state.sessions.length === 0) {
-      sesSel.innerHTML = `<option value="">All sessions for this event were cancelled</option>`;
+      sesSel.innerHTML = `<sl-option value="">All sessions for this event were cancelled</sl-option>`;
       return;
     }
-    sesSel.innerHTML = `<option value="">— Select session to analyze —</option>`;
+    sesSel.innerHTML = "";
+    // Combined-practice mode: one entry pooling every available practice session.
+    const practices = practiceSessions(state.sessions);
+    if (practices.length >= 2) {
+      sesSel.appendChild(mkOption("COMBINED",
+        `All practice sessions combined (${practices.map(shortSessionName).join(" + ")})`));
+    }
     for (const s of state.sessions) {
-      const o = document.createElement("option");
-      o.value = s.session_key;
       const d = new Date(s.date_start).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-      o.textContent = `${s.session_name} (${s.session_type}) — ${d}`;
-      sesSel.appendChild(o);
+      sesSel.appendChild(mkOption(s.session_key, `${s.session_name} (${s.session_type}) — ${d}`));
     }
     sesSel.disabled = false;
   } catch (e) { showError(e.message); }
+}
+
+function practiceSessions(sessions) {
+  return (sessions || [])
+    .filter((s) => !s.is_cancelled && (s.session_type === "Practice" || /^Practice/i.test(s.session_name || "")))
+    .sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+}
+function shortSessionName(s) {
+  return String(s.session_name || "").replace(/^Practice\s*/i, "FP").replace(/\s+/g, " ");
 }
 
 /* =====================================================================
@@ -459,8 +489,7 @@ function computePace(laps, stintsByDriver) {
   return out.sort((a, b) => a.avg - b.avg);
 }
 
-async function analyzeSessionData(sessionKey, session, meeting, driverLimit, progress) {
-  progress(0.03, "Fetching session overview (drivers, laps, stints, classification)…");
+async function fetchOverview(sessionKey) {
   const [drivers, laps, classification, stints, weather, raceControl] = await Promise.all([
     apiGet(`${OPENF1}/drivers?session_key=${sessionKey}`, "drivers"),
     apiGet(`${OPENF1}/laps?session_key=${sessionKey}`, "laps"),
@@ -472,45 +501,40 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
   if (!Array.isArray(drivers) || !Array.isArray(laps)) {
     throw new Error("The API returned an unexpected response for drivers/laps. Please retry in a minute.");
   }
-
-  // Official corner geometry — fetched live, never stored.
-  let circuit = null;
-  if (meeting && meeting.circuit_info_url) {
-    progress(0.06, "Fetching official circuit corner data…");
-    try {
-      const r = await fetch(meeting.circuit_info_url);
-      if (r.ok) circuit = await r.json();
-    } catch { circuit = null; }
-  }
-
-  // driver lookup
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  return { drivers, laps, classification: arr(classification), stints: arr(stints), weather: arr(weather), raceControl: arr(raceControl) };
+}
+function buildDriverInfo(drivers) {
   const driverInfo = new Map();
   for (const d of drivers) {
-    if (!driverInfo.has(d.driver_number)) {
-      driverInfo.set(d.driver_number, {
-        number: d.driver_number,
-        acronym: d.name_acronym || `#${d.driver_number}`,
-        name: d.full_name || d.broadcast_name || `Driver ${d.driver_number}`,
-        team: d.team_name || "Unknown",
-        colour: teamColor(d.team_colour),
-        img: d.headshot_url || "",
-      });
-    }
+    const cur = driverInfo.get(d.driver_number);
+    const info = {
+      number: d.driver_number,
+      acronym: d.name_acronym || `#${d.driver_number}`,
+      name: d.full_name || d.broadcast_name || `Driver ${d.driver_number}`,
+      team: d.team_name || "Unknown",
+      colour: teamColor(d.team_colour),
+      img: d.headshot_url || "",
+    };
+    if (!cur) driverInfo.set(d.driver_number, info);
+    else if (!cur.img && info.img) cur.img = info.img; // fill gaps across sessions
   }
-
-  // stints lookup (tyre compound per lap + race-pace stints)
-  const stintsByDriver = new Map();
-  for (const s of (Array.isArray(stints) ? stints : [])) {
+  return driverInfo;
+}
+function buildStintsMap(stintsRows) {
+  const m = new Map();
+  for (const s of stintsRows) {
     if (s == null || s.driver_number == null) continue;
-    if (!stintsByDriver.has(s.driver_number)) stintsByDriver.set(s.driver_number, []);
-    stintsByDriver.get(s.driver_number).push({
+    if (!m.has(s.driver_number)) m.set(s.driver_number, []);
+    m.get(s.driver_number).push({
       compound: s.compound || "Unknown",
       lap_start: s.lap_start ?? 0, lap_end: s.lap_end ?? 999,
       tyre_age_at_start: s.tyre_age_at_start,
     });
   }
-
-  // best (non-pit-out) lap per driver
+  return m;
+}
+function pickBestLaps(laps, driverInfo) {
   const bestByDriver = new Map();
   for (const lap of laps) {
     if (lap.lap_duration == null || !(lap.lap_duration > 0)) continue;
@@ -518,56 +542,61 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
     const cur = bestByDriver.get(lap.driver_number);
     if (!cur || lap.lap_duration < cur.lap_duration) bestByDriver.set(lap.driver_number, lap);
   }
-  let ranked = [...bestByDriver.entries()]
+  return [...bestByDriver.entries()]
     .filter(([num]) => driverInfo.has(num))
     .sort((a, b) => a[1].lap_duration - b[1].lap_duration);
-  if (ranked.length === 0) throw new Error("No timed laps found for this session yet. The session may not have started or data may still be publishing.");
-
-  ranked = ranked.slice(0, Math.min(driverLimit, ranked.length));
-
-  // per-driver telemetry for their best lap window
-  const traces = new Map(); // driver_number -> {trace, topSpeed, avgSpeed, lap}
+}
+async function fetchOneTrace(sessionKey, num, lap, driverInfo) {
+  const acr = (driverInfo.get(num) || {}).acronym || `#${num}`;
+  const start = new Date(lap.date_start);
+  if (!Number.isFinite(start.getTime()) || !(lap.lap_duration > 0)) {
+    console.warn(`Skipping ${acr}: bad lap window`);
+    return null;
+  }
+  const from = new Date(start.getTime() - 2000).toISOString();
+  const to = new Date(start.getTime() + lap.lap_duration * 1000 + 3000).toISOString();
+  const url = `${OPENF1}/car_data?session_key=${sessionKey}&driver_number=${num}` +
+    `&date>${encodeURIComponent(from)}&date<${encodeURIComponent(to)}`;
+  let rows;
+  try {
+    rows = await apiGet(url, `telemetry for ${acr}`);
+  } catch (e) {
+    console.warn(`Skipping ${acr}: ${e.message}`);
+    return null;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) { console.warn(`Skipping ${acr}: empty telemetry response`); return null; }
+  const pts = rows
+    .filter((r) => r && Number.isFinite(r.speed) && Number.isFinite(Date.parse(r.date)))
+    .map((r) => ({ t: Date.parse(r.date), speed: r.speed }));
+  const trace = speedToProgressTrace(pts);
+  if (!trace) { console.warn(`Skipping ${acr}: not enough telemetry points`); return null; }
+  let top = 0, sum = 0;
+  for (const v of trace) { top = Math.max(top, v); sum += v; }
+  return { trace, topSpeed: top, avgSpeed: sum / trace.length, lap };
+}
+async function fetchBestTraces(sessionKey, ranked, driverInfo, progress) {
+  const traces = new Map();
   let done = 0;
   for (const [num, lap] of ranked) {
     done++;
-    const acr = driverInfo.get(num).acronym;
+    const acr = (driverInfo.get(num) || {}).acronym || `#${num}`;
     progress(0.06 + 0.7 * (done / ranked.length), `Fetching best-lap telemetry for ${acr} (${done}/${ranked.length})…`);
-    const start = new Date(lap.date_start);
-    const from = new Date(start.getTime() - 2000).toISOString();
-    const to = new Date(start.getTime() + lap.lap_duration * 1000 + 3000).toISOString();
-    const url = `${OPENF1}/car_data?session_key=${sessionKey}&driver_number=${num}` +
-      `&date>${encodeURIComponent(from)}&date<${encodeURIComponent(to)}`;
-    let rows;
-    try {
-      rows = await apiGet(url, `telemetry for ${acr}`);
-    } catch (e) {
-      console.warn(`Skipping ${acr}: ${e.message}`);
-      continue;
-    }
-    if (!Array.isArray(rows) || rows.length === 0) { console.warn(`Skipping ${acr}: empty telemetry response`); continue; }
-    const pts = rows
-      .filter((r) => r && Number.isFinite(r.speed) && Number.isFinite(Date.parse(r.date)))
-      .map((r) => ({ t: Date.parse(r.date), speed: r.speed }));
-    const trace = speedToProgressTrace(pts);
-    if (!trace) { console.warn(`Skipping ${acr}: not enough telemetry points`); continue; }
-    let top = 0, sum = 0;
-    for (const v of trace) { top = Math.max(top, v); sum += v; }
-    traces.set(num, { trace, topSpeed: top, avgSpeed: sum / trace.length, lap });
+    const tr = await fetchOneTrace(sessionKey, num, lap, driverInfo);
+    if (tr) traces.set(num, tr);
   }
-  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting — wait a minute and retry, or analyze fewer drivers.");
-
-  // reference = fastest analyzed lap
-  const refNum = [...traces.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration)[0][0];
-
-  progress(0.8, "Detecting corners & ranking every turn…");
-  await sleep(30);
-  let corners = circuit ? mapOfficialCorners(circuit) : null;
-  const cornerSource = corners ? "official" : "auto-detected";
-  if (!corners) corners = detectCornersFromSpeed(traces.get(refNum).trace);
-  if (corners.length === 0) throw new Error("Could not identify corners on this circuit from telemetry.");
-
-  // per-corner rankings
-  const cornerResults = corners.map((c) => {
+  return traces;
+}
+async function fetchCircuit(meeting, progress) {
+  if (!meeting || !meeting.circuit_info_url) return null;
+  progress(0.06, "Fetching official circuit corner data…");
+  try {
+    const r = await fetch(meeting.circuit_info_url);
+    if (r.ok) return await r.json();
+  } catch { /* ignore → auto-detect fallback */ }
+  return null;
+}
+function rankCorners(traces, driverInfo, corners) {
+  return corners.map((c) => {
     const perDriver = [...traces.entries()].map(([num, d]) => ({ num, ...windowStats(d.trace, c.bin) }));
     perDriver.sort((a, b) => b.avg - a.avg);
     const best = perDriver[0].avg;
@@ -575,8 +604,9 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
     // team aggregates
     const byTeam = new Map();
     for (const p of perDriver) {
-      const t = driverInfo.get(p.num).team;
-      if (!byTeam.has(t)) byTeam.set(t, { team: t, speeds: [], colour: driverInfo.get(p.num).colour });
+      const info = driverInfo.get(p.num) || {};
+      const t = info.team || "Unknown";
+      if (!byTeam.has(t)) byTeam.set(t, { team: t, speeds: [], colour: info.colour || "#999" });
       byTeam.get(t).speeds.push(p.avg);
     }
     const teams = [...byTeam.values()].map((t) => ({
@@ -584,9 +614,9 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
     })).sort((a, b) => b.avg - a.avg);
     return { ...c, ranking: withGap, bestTeam: teams[0], teams };
   });
-
-  // driver aggregates (+ tyre compound of the best lap)
-  const driverStats = [...traces.entries()].map(([num, d]) => {
+}
+function finishDriverStats(traces, driverInfo, cornerResults, compoundOf) {
+  return [...traces.entries()].map(([num, d]) => {
     let won = 0, defSum = 0;
     cornerResults.forEach((c) => {
       const me = c.ranking.find((r) => r.num === num);
@@ -596,11 +626,11 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
     return {
       num, info: driverInfo.get(num), lap: d.lap, topSpeed: d.topSpeed, avgSpeed: d.avgSpeed,
       won, deficit: defSum / cornerResults.length,
-      compound: compoundFor(stintsByDriver, num, d.lap.lap_number),
+      compound: compoundOf(num, d.lap),
     };
   }).sort((a, b) => a.lap.lap_duration - b.lap.lap_duration);
-
-  // team aggregates
+}
+function aggregateTeams(driverStats, cornerResults) {
   const teamMap = new Map();
   for (const ds of driverStats) {
     const t = ds.info.team;
@@ -614,7 +644,7 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
       if (entry) { entry.cornerAvgs.push(t.avg); if (c.bestTeam.team === t.team) entry.won++; }
     }
   }
-  const teamStats = [...teamMap.values()].map((t) => {
+  return [...teamMap.values()].map((t) => {
     const avgLap = t.laps.reduce((a, b) => a + b, 0) / t.laps.length;
     const avgCorner = t.cornerAvgs.length ? t.cornerAvgs.reduce((a, b) => a + b, 0) / t.cornerAvgs.length : 0;
     // strongest turn = smallest deficit to the corner-best average
@@ -627,6 +657,49 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
     });
     return { ...t, avgLap, avgCorner, strongest: strong };
   }).sort((a, b) => b.won - a.won || b.avgCorner - a.avgCorner);
+}
+async function analyzeSessionData(sessionKey, session, meeting, driverLimit, progress) {
+  progress(0.03, "Fetching session overview (drivers, laps, stints, classification)…");
+  const ov = await fetchOverview(sessionKey);
+  const { drivers, laps } = ov;
+
+  // Official corner geometry — fetched live, never stored.
+  const circuit = await fetchCircuit(meeting, progress);
+
+  const driverInfo = buildDriverInfo(drivers);
+
+  // stints lookup (tyre compound per lap + race-pace stints)
+  const stintsByDriver = buildStintsMap(ov.stints);
+
+  // best (non-pit-out) lap per driver
+  let ranked = pickBestLaps(laps, driverInfo);
+  if (ranked.length === 0) throw new Error("No timed laps found for this session yet. The session may not have started or data may still be publishing.");
+
+  ranked = ranked.slice(0, Math.min(driverLimit, ranked.length));
+
+  // per-driver telemetry for their best lap window
+  const traces = await fetchBestTraces(sessionKey, ranked, driverInfo, progress);
+  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting — wait a minute and retry, or analyze fewer drivers.");
+
+  // reference = fastest analyzed lap
+  const refNum = [...traces.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration)[0][0];
+
+  progress(0.8, "Detecting corners & ranking every turn…");
+  await sleep(30);
+  let corners = circuit ? mapOfficialCorners(circuit) : null;
+  const cornerSource = corners ? "official" : "auto-detected";
+  if (!corners) corners = detectCornersFromSpeed(traces.get(refNum).trace);
+  if (corners.length === 0) throw new Error("Could not identify corners on this circuit from telemetry.");
+
+  // per-corner rankings
+  const cornerResults = rankCorners(traces, driverInfo, corners);
+
+  // driver aggregates (+ tyre compound of the best lap)
+  const driverStats = finishDriverStats(traces, driverInfo, cornerResults,
+    (num, lap) => compoundFor(stintsByDriver, num, lap.lap_number));
+
+  // team aggregates
+  const teamStats = aggregateTeams(driverStats, cornerResults);
 
   // race pace (Race / Sprint only — needs full-lap stint data)
   const stype = session.session_type || "";
@@ -634,8 +707,92 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
 
   return {
     session, meeting, driverStats, teamStats, cornerResults, traces, driverInfo,
-    classification, cornerSource, circuit, weatherSum: summarizeWeather(weather),
-    flagEvents: summarizeFlags(raceControl), pace,
+    classification: ov.classification, cornerSource, circuit,
+    weatherSum: summarizeWeather(ov.weather), flagEvents: summarizeFlags(ov.raceControl), pace,
+  };
+}
+
+/* =====================================================================
+ * COMBINED PRACTICE — pools every available practice session.
+ * Each driver's overall-best practice lap (and its telemetry) is used,
+ * so corners are ranked on the best each driver showed all weekend.
+ * Telemetry is fetched only for those laps — one lap per driver total.
+ * ===================================================================== */
+async function analyzeCombinedPractice(practiceSessions, meeting, driverLimit, progress) {
+  const sessions = practiceSessions.slice().sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+  if (sessions.length === 0) throw new Error("No practice sessions found for this event.");
+  // 1. cheap overviews only (no telemetry yet)
+  const per = [];
+  let i = 0;
+  for (const s of sessions) {
+    i++;
+    progress(0.02 + (0.1 * i) / sessions.length,
+      `Combined practice ${i}/${sessions.length}: loading ${s.session_name} overview…`);
+    const ov = await fetchOverview(s.session_key);
+    per.push({ session: s, ov, info: buildDriverInfo(ov.drivers), sm: buildStintsMap(ov.stints) });
+  }
+  // 2. merge driver identities across sessions
+  const driverInfo = new Map();
+  for (const p of per) {
+    for (const [num, inf] of p.info) {
+      if (!driverInfo.has(num)) driverInfo.set(num, { ...inf });
+      else if (!driverInfo.get(num).img && inf.img) driverInfo.get(num).img = inf.img;
+    }
+  }
+  // 3. overall-best practice lap per driver (+ owning session)
+  const best = new Map();
+  per.forEach((p, idx) => {
+    for (const [num, lap] of pickBestLaps(p.ov.laps, driverInfo)) {
+      const cur = best.get(num);
+      if (!cur || lap.lap_duration < cur.lap.lap_duration) best.set(num, { lap, sessionIdx: idx });
+    }
+  });
+  let picks = [...best.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration);
+  if (picks.length === 0) throw new Error("No timed laps found in any practice session yet.");
+  picks = picks.slice(0, Math.min(driverLimit, picks.length));
+  // 4. telemetry for those laps only, from their own sessions
+  const traces = new Map();
+  let done = 0;
+  for (const [num, { lap, sessionIdx }] of picks) {
+    done++;
+    const s = per[sessionIdx].session;
+    const acr = (driverInfo.get(num) || {}).acronym || `#${num}`;
+    progress(0.15 + (0.6 * done) / picks.length,
+      `Combined practice: best-lap telemetry for ${acr} (${s.session_name}, ${done}/${picks.length})…`);
+    const tr = await fetchOneTrace(s.session_key, num, lap, driverInfo);
+    if (tr) traces.set(num, tr);
+  }
+  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting — wait a minute and retry, or analyze fewer drivers.");
+  // 5. shared corners + rankings on the pooled best laps
+  const circuit = await fetchCircuit(meeting, (f, t) => progress(0.78, t));
+  const refNum = [...traces.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration)[0][0];
+  progress(0.82, "Detecting corners & ranking every turn…");
+  await sleep(30);
+  let corners = circuit ? mapOfficialCorners(circuit) : null;
+  const cornerSource = corners ? "official" : "auto-detected";
+  if (!corners) corners = detectCornersFromSpeed(traces.get(refNum).trace);
+  if (corners.length === 0) throw new Error("Could not identify corners on this circuit from telemetry.");
+  const cornerResults = rankCorners(traces, driverInfo, corners);
+  const compoundOf = (num, lap) => {
+    const own = best.get(num);
+    return compoundFor(own ? per[own.sessionIdx].sm : new Map(), num, lap.lap_number);
+  };
+  const driverStats = finishDriverStats(traces, driverInfo, cornerResults, compoundOf);
+  const teamStats = aggregateTeams(driverStats, cornerResults);
+  // 6. context/classification from the final practice session
+  const last = per[per.length - 1];
+  const names = sessions.map(shortSessionName).join(" + ");
+  const session = {
+    session_key: "combined",
+    session_name: `${names} (combined)`,
+    session_type: "Practice",
+    date_start: sessions[0].date_start,
+    meeting_key: (meeting && meeting.meeting_key) || sessions[0].meeting_key,
+  };
+  return {
+    session, meeting, driverStats, teamStats, cornerResults, traces, driverInfo,
+    classification: last.ov.classification, cornerSource, circuit,
+    weatherSum: summarizeWeather(last.ov.weather), flagEvents: summarizeFlags(last.ov.raceControl), pace: [],
   };
 }
 
@@ -647,8 +804,9 @@ async function runAnalysis() {
   $("results").hidden = true;
   const sessionKey = $("sessionSelect").value;
   if (!sessionKey) return;
-  const session = state.sessions.find((s) => String(s.session_key) === String(sessionKey));
-  if (!session) { showError("Selected session is no longer available. Please re-select the Grand Prix and session."); return; }
+  const combined = sessionKey === "COMBINED";
+  const session = combined ? null : state.sessions.find((s) => String(s.session_key) === String(sessionKey));
+  if (!combined && !session) { showError("Selected session is no longer available. Please re-select the Grand Prix and session."); return; }
   const meeting = state.meetingByKey.get(String($("gpSelect").value)) || null;
   const driverLimit = parseInt($("driverLimitSelect").value, 10) || 99;
   // lock the UI so a mid-run change can't mix two analyses
@@ -657,8 +815,15 @@ async function runAnalysis() {
   locked.forEach((id) => { wasEnabled[id] = !$(id).disabled; $(id).disabled = true; });
 
   try {
-    const a = await analyzeSessionData(sessionKey, session, meeting, driverLimit,
-      (frac, text) => setStatus(text, frac));
+    const progress = (frac, text) => setStatus(text, frac);
+    let a;
+    if (combined) {
+      const practices = practiceSessions(state.sessions);
+      if (practices.length < 2) throw new Error("Fewer than 2 practice sessions are available for this event.");
+      a = await analyzeCombinedPractice(practices, meeting, driverLimit, progress);
+    } else {
+      a = await analyzeSessionData(sessionKey, session, meeting, driverLimit, progress);
+    }
     state.analysis = a;
     saveShareHash();
 
@@ -666,7 +831,7 @@ async function runAnalysis() {
     await sleep(30);
     await renderAll();
     $("results").hidden = false;
-    setStatus(`Done — analyzed ${a.driverStats.length} drivers over ${a.cornerResults.length} corners (${a.cornerSource} apexes). Only the selected session was analyzed.`, 1);
+    setStatus(`Done — analyzed ${a.driverStats.length} drivers over ${a.cornerResults.length} corners (${a.cornerSource} apexes). ${combined ? "All practice sessions combined." : "Only the selected session was analyzed."}`, 1);
   } catch (e) {
     console.error(e);
     showError((e && e.message) || String(e));
@@ -724,62 +889,127 @@ function renderSummary(a) {
     `<span class="chip">🏆 <b>Most corners won (team)</b> <span class="swatch" style="background:${teamKing.colour}"></span>${esc(teamKing.team)} — ${teamKing.won}</span>`;
 }
 
+/* ---------------- Tabulator grids ---------------- */
+const grids = {};
+function sessionTag() {
+  const a = state.analysis;
+  if (!a) return "session";
+  return `${String(a.session.session_name).replace(/[^\w]+/g, "")}_${a.session.session_key}`;
+}
+function makeGrid(name, data, columns, sortField, sortDir) {
+  const elId = `${name}Grid`;
+  if (grids[name]) { try { grids[name].destroy(); } catch { /* ignore */ } delete grids[name]; }
+  if (typeof Tabulator === "undefined") return null;
+  const t = new Tabulator(`#${elId}`, {
+    data,
+    columns,
+    layout: "fitColumns",
+    initialSort: sortField ? [{ column: sortField, dir: sortDir || "asc" }] : [],
+  });
+  grids[name] = t;
+  return t;
+}
+function downloadGridCSV(name, filename) {
+  const g = grids[name];
+  if (!g) { showError("Run an analysis first — there is nothing to download yet."); return; }
+  try { g.download("csv", filename); }
+  catch (e) { showError(`CSV download failed: ${(e && e.message) || e}`); }
+}
+const driverCellHtml = (info) =>
+  `${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span><span class="best-cell">${esc(info.acronym)}</span>`;
+const teamCellHtml = (name, colour) =>
+  `<span class="swatch" style="background:${colour}"></span><span class="best-cell">${esc(name)}</span>`;
+
 function renderCornerTable(a) {
-  const tb = $$("#cornerTable tbody");
-  tb.innerHTML = "";
-  a.cornerResults.forEach((c, idx) => {
+  const data = a.cornerResults.map((c, idx) => {
     const best = c.ranking[0];
     const bd = a.driverInfo.get(best.num);
-    const top3 = c.ranking.slice(0, 3)
-      .map((r) => `${esc(a.driverInfo.get(r.num).acronym)}${r.gap > 0.0005 ? ` (+${r.gap.toFixed(1)})` : ""}`)
-      .join(", ");
-    const tr = document.createElement("tr");
-    tr.id = `corner-row-${idx}`;
-    tr.innerHTML =
-      `<td class="best-cell">T${c.number}${c.official ? "" : "*"}</td>` +
-      `<td class="num">${(100 * c.bin / (N_BINS - 1)).toFixed(1)}%</td>` +
-      `<td>${portraitFor(bd)}<span class="swatch" style="background:${bd.colour}"></span><span class="best-cell">${esc(bd.acronym)}</span></td>` +
-      `<td class="num">${best.avg.toFixed(1)} km/h <span style="color:var(--muted)">(min ${best.min.toFixed(0)})</span></td>` +
-      `<td><span class="swatch" style="background:${c.bestTeam.colour}"></span>${esc(c.bestTeam.team)}</td>` +
-      `<td>${top3}</td>`;
-    tr.addEventListener("mouseenter", () => { state.highlightBin = c.bin; redrawStaticMap(); });
-    tr.addEventListener("mouseleave", () => { state.highlightBin = null; redrawStaticMap(); });
-    tb.appendChild(tr);
+    return {
+      id: idx,
+      turn: `T${c.number}${c.official ? "" : "*"}`,
+      apexPct: (100 * c.bin) / (N_BINS - 1),
+      bestDriver: bd.acronym,
+      bestDriverHtml: `${portraitFor(bd)}${teamCellHtml(bd.acronym, bd.colour)}`,
+      bestAvg: best.avg,
+      bestAvgHtml: `${best.avg.toFixed(1)} km/h <span style="color:var(--muted)">(min ${best.min.toFixed(0)})</span>`,
+      bestTeam: c.bestTeam.team,
+      bestTeamHtml: teamCellHtml(c.bestTeam.team, c.bestTeam.colour),
+      top3: c.ranking.slice(0, 3)
+        .map((r) => `${a.driverInfo.get(r.num).acronym}${r.gap > 0.0005 ? ` (+${r.gap.toFixed(1)})` : ""}`)
+        .join(", "),
+    };
   });
+  const g = makeGrid("corner", data, [
+    { title: "Turn", field: "turn", sorter: "string", formatter: (cell) => `<span class="best-cell">${esc(cell.getValue())}</span>` },
+    { title: "Apex %", field: "apexPct", sorter: "number", hozAlign: "right", formatter: (cell) => `${cell.getValue().toFixed(1)}%` },
+    { title: "Best driver", field: "bestDriver", sorter: "string", formatter: (cell) => cell.getRow().getData().bestDriverHtml },
+    { title: "Avg speed", field: "bestAvg", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().bestAvgHtml },
+    { title: "Best team", field: "bestTeam", sorter: "string", formatter: (cell) => cell.getRow().getData().bestTeamHtml },
+    { title: "Top 3 (gap)", field: "top3", sorter: "string", headerSort: false },
+  ], "apexPct", "asc");
+  if (g) {
+    g.on("rowMouseEnter", (e, row) => {
+      try {
+        const c = a.cornerResults[row.getData().id];
+        if (c) { state.highlightBin = c.bin; redrawStaticMap(); }
+      } catch { /* ignore */ }
+    });
+    g.on("rowMouseLeave", () => { state.highlightBin = null; redrawStaticMap(); });
+  }
 }
 
 function renderDriverTable(a) {
-  const tb = $$("#driverTable tbody");
-  tb.innerHTML = "";
-  for (const d of a.driverStats) {
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td>${portraitFor(d.info)}<span class="swatch" style="background:${d.info.colour}"></span><span class="best-cell">${esc(d.info.acronym)}</span> <span style="color:var(--muted)">${esc(d.info.name)}</span></td>` +
-      `<td>${esc(d.info.team)}</td>` +
-      `<td class="num">${fmtLap(d.lap.lap_duration)}</td>` +
-      `<td>${pillFor(d.compound)}</td>` +
-      `<td class="num">${d.topSpeed.toFixed(0)} km/h</td>` +
-      `<td class="num">${d.avgSpeed.toFixed(1)} km/h</td>` +
-      `<td class="num">${d.won}${d.won > 0 ? `<span class="tag">BEST</span>` : ""}</td>` +
-      `<td class="num">+${d.deficit.toFixed(2)} km/h</td>`;
-    tb.appendChild(tr);
-  }
+  const data = a.driverStats.map((d) => ({
+    id: d.num,
+    driver: d.info.acronym,
+    driverHtml: `${driverCellHtml(d.info)} <span style="color:var(--muted)">${esc(d.info.name)}</span>`,
+    team: d.info.team,
+    teamHtml: teamCellHtml(d.info.team, d.info.colour),
+    bestLapS: d.lap.lap_duration,
+    bestLapHtml: fmtLap(d.lap.lap_duration),
+    compound: d.compound,
+    compoundHtml: pillFor(d.compound),
+    topS: d.topSpeed,
+    topHtml: `${d.topSpeed.toFixed(0)} km/h`,
+    avgS: d.avgSpeed,
+    avgHtml: `${d.avgSpeed.toFixed(1)} km/h`,
+    won: d.won,
+    wonHtml: `${d.won}${d.won > 0 ? `<span class="tag">BEST</span>` : ""}`,
+    deficit: d.deficit,
+    deficitHtml: `+${d.deficit.toFixed(2)} km/h`,
+  }));
+  makeGrid("driver", data, [
+    { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
+    { title: "Team", field: "team", sorter: "string", formatter: (cell) => cell.getRow().getData().teamHtml },
+    { title: "Best lap", field: "bestLapS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().bestLapHtml },
+    { title: "Tyre", field: "compound", sorter: "string", formatter: (cell) => cell.getRow().getData().compoundHtml },
+    { title: "Top speed", field: "topS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().topHtml },
+    { title: "Avg speed", field: "avgS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().avgHtml },
+    { title: "Corners won", field: "won", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().wonHtml },
+    { title: "Avg deficit", field: "deficit", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().deficitHtml },
+  ], "bestLapS", "asc");
 }
 
 function renderTeamTable(a) {
-  const tb = $$("#teamTable tbody");
-  tb.innerHTML = "";
-  for (const t of a.teamStats) {
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td><span class="swatch" style="background:${t.colour}"></span><span class="best-cell">${esc(t.team)}</span></td>` +
-      `<td>${t.drivers.map((d) => esc(d.info.acronym)).join(", ")}</td>` +
-      `<td class="num">${fmtLap(t.avgLap)}</td>` +
-      `<td class="num">${t.won}</td>` +
-      `<td class="num">${t.avgCorner.toFixed(1)} km/h</td>` +
-      `<td class="num">${t.strongest != null ? "T" + t.strongest : "—"}</td>`;
-    tb.appendChild(tr);
-  }
+  const data = a.teamStats.map((t) => ({
+    team: t.team,
+    teamHtml: teamCellHtml(t.team, t.colour),
+    drivers: t.drivers.map((d) => d.info.acronym).join(", "),
+    avgLapS: t.avgLap,
+    avgLapHtml: fmtLap(t.avgLap),
+    won: t.won,
+    avgCorner: t.avgCorner,
+    avgCornerHtml: `${t.avgCorner.toFixed(1)} km/h`,
+    strongest: t.strongest == null ? "—" : `T${t.strongest}`,
+  }));
+  makeGrid("team", data, [
+    { title: "Team", field: "team", sorter: "string", formatter: (cell) => cell.getRow().getData().teamHtml },
+    { title: "Drivers", field: "drivers", sorter: "string", headerSort: false },
+    { title: "Avg best lap", field: "avgLapS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().avgLapHtml },
+    { title: "Corners won", field: "won", sorter: "number", hozAlign: "right" },
+    { title: "Avg corner speed", field: "avgCorner", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().avgCornerHtml },
+    { title: "Strongest turn", field: "strongest", sorter: "string", hozAlign: "right" },
+  ], "won", "desc");
 }
 
 /* ---- track shape: official centerline, else fastest driver's outline ---- */
@@ -975,120 +1205,46 @@ function onTrackClick(ev) {
     if (d < bestD) { bestD = d; best = ap; }
   }
   if (!best) return;
-  const row = document.getElementById(`corner-row-${best.idx}`);
-  if (!row) return;
-  row.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  row.classList.remove("flash");
-  void row.offsetWidth; // restart the CSS animation
-  row.classList.add("flash");
-  setTimeout(() => row.classList.remove("flash"), 2100);
-}
-
-/* ---- speed traces ---- */
-let chartVisible = new Set();
-function renderSpeedChart(a, preset) {
-  const box = $("traceToggles");
-  box.innerHTML = "";
-  const sorted = [...a.driverStats].sort((x, y) => x.lap.lap_duration - y.lap.lap_duration);
-  const nums = sorted.map((d) => d.num);
-  const initial = Array.isArray(preset) && preset.length
-    ? preset.filter((n) => nums.includes(n))
-    : sorted.slice(0, 6).map((d) => d.num);
-  chartVisible = new Set(initial.length ? initial : nums.slice(0, 1));
-  for (const d of sorted) {
-    const lab = document.createElement("label");
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = chartVisible.has(d.num);
-    cb.addEventListener("change", (e) => {
-      e.target.checked ? chartVisible.add(d.num) : chartVisible.delete(d.num);
-      drawSpeedChart(a, chartVisible);
-    });
-    lab.appendChild(cb);
-    const span = document.createElement("span");
-    span.innerHTML = `<span class="swatch" style="background:${d.info.colour}"></span>${esc(d.info.acronym)}`;
-    lab.appendChild(span);
-    box.appendChild(lab);
+  let rowEl = null;
+  if (grids.corner) {
+    try { const r = grids.corner.getRow(best.idx); if (r) rowEl = r.getElement(); } catch { /* ignore */ }
   }
-  drawSpeedChart(a, chartVisible);
-}
-
-function drawSpeedChart(a, visible) {
-  const canvas = $("speedChart");
-  const fit = fitCanvas(canvas, 380 / 900);
-  const ctx = fit.ctx;
-  const W = fit.W, H = fit.H;
-  ctx.clearRect(0, 0, W, H);
-  const padL = 52, padR = 14, padT = 18, padB = 34;
-  let mn = Infinity, mx = -Infinity;
-  for (const num of visible) {
-    const tr = a.traces.get(num)?.trace;
-    if (!tr) continue;
-    for (const v of tr) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
-  }
-  if (!isFinite(mn)) {
-    ctx.fillStyle = "#9aa4bd"; ctx.font = "15px sans-serif";
-    ctx.fillText("Select at least one driver.", 30, 60);
-    return;
-  }
-  mn = Math.floor((mn - 8) / 10) * 10; mx = Math.ceil((mx + 8) / 10) * 10;
-  const X = (b) => padL + (b / (N_BINS - 1)) * (W - padL - padR);
-  const Y = (v) => padT + (1 - (v - mn) / Math.max(1e-9, mx - mn)) * (H - padT - padB);
-  // grid
-  ctx.strokeStyle = "#232c47"; ctx.fillStyle = "#9aa4bd"; ctx.font = "11px sans-serif";
-  ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.lineWidth = 1;
-  for (let g = 0; g <= 6; g++) {
-    const v = mn + ((mx - mn) * g) / 6;
-    ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(W - padR, Y(v)); ctx.stroke();
-    ctx.fillText(`${v.toFixed(0)}`, padL - 6, Y(v));
-  }
-  ctx.textAlign = "center"; ctx.textBaseline = "top";
-  for (let p = 0; p <= 100; p += 10) ctx.fillText(`${p}%`, X(((N_BINS - 1) * p) / 100), H - padB + 8);
-  // corner apex guides
-  ctx.strokeStyle = "rgba(255,255,255,.22)"; ctx.setLineDash([4, 4]);
-  ctx.fillStyle = "rgba(255,255,255,.55)";
-  for (const c of a.cornerResults) {
-    ctx.beginPath(); ctx.moveTo(X(c.bin), padT); ctx.lineTo(X(c.bin), H - padB); ctx.stroke();
-    ctx.fillText(String(c.number), X(c.bin), 4);
-  }
-  ctx.setLineDash([]);
-  // traces
-  ctx.lineWidth = 2;
-  for (const num of visible) {
-    const ds = a.driverStats.find((d) => d.num === num);
-    const tr = a.traces.get(num)?.trace;
-    if (!ds || !tr) continue;
-    ctx.strokeStyle = ds.info.colour;
-    ctx.beginPath();
-    for (let b = 0; b < N_BINS; b += 2) {
-      const xx = X(b), yy = Y(tr[b]);
-      b === 0 ? ctx.moveTo(xx, yy) : ctx.lineTo(xx, yy);
-    }
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#9aa4bd"; ctx.textAlign = "left";
-  ctx.fillText("km/h", 6, padT - 2);
+  if (!rowEl) return;
+  rowEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  const cells = rowEl.querySelectorAll ? [...rowEl.querySelectorAll(".tabulator-cell")] : [];
+  cells.forEach((c) => c.classList.remove("flash"));
+  void rowEl.offsetWidth; // restart the CSS animation
+  cells.forEach((c) => c.classList.add("flash"));
+  setTimeout(() => cells.forEach((c) => c.classList.remove("flash")), 2100);
 }
 
 function renderClassification(a) {
-  const tb = $$("#resultTable tbody");
-  tb.innerHTML = "";
   const rows = [...(a.classification || [])].sort((x, y) => (x.position ?? 999) - (y.position ?? 999));
-  if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="5" style="color:var(--muted)">Official classification not published for this session.</td></tr>`;
-    return;
-  }
-  for (const r of rows) {
+  const data = rows.map((r) => {
     const info = a.driverInfo.get(r.driver_number) || { acronym: `#${r.driver_number}`, name: "", team: "", colour: "#999", img: "" };
     const dur = Array.isArray(r.duration) ? r.duration.filter(Boolean).join(" / ") : r.duration;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="num">${r.position ?? "—"}</td>` +
-      `<td>${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span>${esc(info.acronym)} <span style="color:var(--muted)">${esc(info.name)}</span></td>` +
-      `<td>${esc(info.team)}</td>` +
-      `<td class="num">${dur != null && dur !== "" ? (typeof dur === "number" ? fmtLap(dur) : esc(dur)) : "—"}</td>` +
-      `<td class="num">${r.number_of_laps ?? "—"}</td>`;
-    tb.appendChild(tr);
+    return {
+      pos: r.position ?? 999,
+      posHtml: `${r.position ?? "—"}`,
+      driver: info.acronym,
+      driverHtml: `${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span>${esc(info.acronym)} <span style="color:var(--muted)">${esc(info.name)}</span>`,
+      team: info.team,
+      durHtml: `${dur != null && dur !== "" ? (typeof dur === "number" ? fmtLap(dur) : esc(dur)) : "—"}`,
+      laps: r.number_of_laps ?? "—",
+    };
+  });
+  if (!data.length) {
+    const el = document.getElementById("resultGrid");
+    if (el) el.innerHTML = `<p class="hint" style="padding:12px">Official classification not published for this session.</p>`;
+    return;
   }
+  makeGrid("result", data, [
+    { title: "Pos", field: "pos", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().posHtml },
+    { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
+    { title: "Team", field: "team", sorter: "string" },
+    { title: "Best / total", field: "durHtml", sorter: "string", hozAlign: "right", headerSort: false },
+    { title: "Laps", field: "laps", sorter: "number", hozAlign: "right" },
+  ], "pos", "asc");
 }
 
 /* ---------------- context strip: weather + flags ---------------- */
@@ -1114,47 +1270,65 @@ function renderContext(a) {
 
 /* ---------------- sectors & speed traps ---------------- */
 function renderSectorTable(a) {
-  const tb = $$("#sectorTable tbody");
-  tb.innerHTML = "";
-  for (const d of a.driverStats) {
+  const s = (v) => (v == null || !isFinite(v) ? null : v);
+  const data = a.driverStats.map((d) => {
     const L = d.lap;
-    const s = (v) => (v == null || !isFinite(v) ? "—" : v.toFixed(3));
-    const v = (x) => (x == null || !isFinite(x) ? "—" : `${x} km/h`);
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td>${portraitFor(d.info)}<span class="best-cell">${esc(d.info.acronym)}</span></td>` +
-      `<td class="num">${s(L.duration_sector_1)}</td>` +
-      `<td class="num">${s(L.duration_sector_2)}</td>` +
-      `<td class="num">${s(L.duration_sector_3)}</td>` +
-      `<td class="num">${fmtLap(L.lap_duration)}</td>` +
-      `<td class="num">${v(L.i1_speed)}</td>` +
-      `<td class="num">${v(L.i2_speed)}</td>` +
-      `<td class="num">${v(L.st_speed)}</td>` +
-      `<td>${pillFor(d.compound)}</td>`;
-    tb.appendChild(tr);
-  }
+    return {
+      driver: d.info.acronym,
+      driverHtml: `${portraitFor(d.info)}<span class="best-cell">${esc(d.info.acronym)}</span>`,
+      s1: s(L.duration_sector_1), s2: s(L.duration_sector_2), s3: s(L.duration_sector_3),
+      bestLapS: L.lap_duration,
+      bestLapHtml: fmtLap(L.lap_duration),
+      i1: s(L.i1_speed), i2: s(L.i2_speed), st: s(L.st_speed),
+      compound: d.compound,
+      compoundHtml: pillFor(d.compound),
+    };
+  });
+  const sec = (t, f) => ({
+    title: t, field: f, sorter: "number", hozAlign: "right",
+    formatter: (cell) => { const v = cell.getValue(); return v == null ? "—" : v.toFixed(3); },
+  });
+  const trap = (t, f) => ({
+    title: t, field: f, sorter: "number", hozAlign: "right",
+    formatter: (cell) => { const v = cell.getValue(); return v == null ? "—" : `${v} km/h`; },
+  });
+  makeGrid("sector", data, [
+    { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
+    sec("S1", "s1"), sec("S2", "s2"), sec("S3", "s3"),
+    { title: "Best lap", field: "bestLapS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().bestLapHtml },
+    trap("I1 trap", "i1"), trap("I2 trap", "i2"), trap("ST trap", "st"),
+    { title: "Tyre", field: "compound", sorter: "string", formatter: (cell) => cell.getRow().getData().compoundHtml },
+  ], "bestLapS", "asc");
 }
 
 /* ---------------- race pace & degradation ---------------- */
 function renderPace(a) {
   const card = $("racePaceCard");
-  const tb = $$("#paceTable tbody");
-  tb.innerHTML = "";
   if (!a.pace || a.pace.length === 0) { card.hidden = true; return; }
   card.hidden = false;
-  for (const p of a.pace) {
-    const info = a.driverInfo.get(p.num) || { acronym: `#${p.num}`, colour: "#999" };
-    const deg = `${p.slope >= 0 ? "+" : ""}${p.slope.toFixed(3)}`;
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td>${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span><span class="best-cell">${esc(info.acronym)}</span></td>` +
-      `<td class="num">${p.stint}</td>` +
-      `<td>${pillFor(p.compound)} <span style="color:var(--muted)">age ${esc(p.age)}</span></td>` +
-      `<td class="num">${p.n}</td>` +
-      `<td class="num">${fmtLap(p.avg)}</td>` +
-      `<td class="num">${deg}</td>`;
-    tb.appendChild(tr);
-  }
+  const data = a.pace.map((p) => {
+    const info = a.driverInfo.get(p.num) || { acronym: `#${p.num}`, colour: "#999", img: "" };
+    return {
+      driver: info.acronym,
+      driverHtml: `${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span><span class="best-cell">${esc(info.acronym)}</span>`,
+      stint: p.stint,
+      compound: p.compound,
+      compoundHtml: `${pillFor(p.compound)} <span style="color:var(--muted)">age ${esc(p.age)}</span>`,
+      n: p.n,
+      avgS: p.avg,
+      avgHtml: fmtLap(p.avg),
+      slope: p.slope,
+      slopeHtml: `${p.slope >= 0 ? "+" : ""}${p.slope.toFixed(3)}`,
+    };
+  });
+  makeGrid("pace", data, [
+    { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
+    { title: "Stint", field: "stint", sorter: "number", hozAlign: "right" },
+    { title: "Compound", field: "compound", sorter: "string", formatter: (cell) => cell.getRow().getData().compoundHtml },
+    { title: "Laps", field: "n", sorter: "number", hozAlign: "right" },
+    { title: "Avg pace", field: "avgS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().avgHtml },
+    { title: "Deg (s/lap)", field: "slope", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().slopeHtml },
+  ], "avgS", "asc");
 }
 
 /* ---------------- head-to-head ---------------- */
@@ -1163,16 +1337,25 @@ function populateH2H(a) {
     const sel = $(id);
     sel.innerHTML = "";
     for (const d of a.driverStats) {
-      const o = document.createElement("option");
-      o.value = d.num;
-      o.textContent = `${d.info.acronym} — ${d.info.team} (${fmtLap(d.lap.lap_duration)})`;
-      sel.appendChild(o);
+      sel.appendChild(mkOption(d.num, `${d.info.acronym} — ${d.info.team} (${fmtLap(d.lap.lap_duration)})`));
     }
   }
   if (a.driverStats.length >= 2) {
     $("h2hA").value = String(a.driverStats[0].num);
     $("h2hB").value = String(a.driverStats[1].num);
   }
+}
+function ensureGridHost(afterId, gridId) {
+  let host = document.getElementById(gridId);
+  if (!host) {
+    host = document.createElement("div");
+    host.id = gridId;
+    host.className = "grid";
+    host.style.marginTop = "12px";
+    const anchor = document.getElementById(afterId);
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(host, anchor.nextSibling);
+  }
+  return host;
 }
 function renderH2H() {
   const a = state.analysis;
@@ -1183,25 +1366,35 @@ function renderH2H() {
   if (!A || !B) { box.innerHTML = `<p class="hint">Select two drivers to compare.</p>`; return; }
   if (na === nb) { box.innerHTML = `<p class="hint">Pick two <strong>different</strong> drivers.</p>`; return; }
   let wa = 0, wb = 0;
-  const rows = a.cornerResults.map((c) => {
+  const data = a.cornerResults.map((c) => {
     const ra = c.ranking.find((r) => r.num === na), rb = c.ranking.find((r) => r.num === nb);
     const delta = ra.avg - rb.avg; // + means A faster
     if (delta >= 0) wa++; else wb++;
     const win = delta >= 0 ? A : B;
-    return `<tr><td class="best-cell">T${c.number}</td>` +
-      `<td class="num">${ra.avg.toFixed(1)}</td><td class="num">${rb.avg.toFixed(1)}</td>` +
-      `<td class="num" style="color:${delta >= 0 ? "var(--good)" : "var(--accent-2)"}">${delta >= 0 ? "+" : ""}${delta.toFixed(2)}</td>` +
-      `<td><span class="swatch" style="background:${win.info.colour}"></span>${esc(win.info.acronym)}</td></tr>`;
-  }).join("");
+    return {
+      turn: `T${c.number}`,
+      aAvg: ra.avg, bAvg: rb.avg, delta,
+      deltaHtml: `<span style="color:${delta >= 0 ? "var(--good)" : "var(--accent-2)"};font-weight:800">${delta >= 0 ? "+" : ""}${delta.toFixed(2)}</span>`,
+      winner: win.info.acronym,
+      winnerHtml: `<span class="swatch" style="background:${win.info.colour}"></span><span class="best-cell">${esc(win.info.acronym)}</span>`,
+    };
+  });
   const lapDelta = A.lap.lap_duration - B.lap.lap_duration;
   box.innerHTML =
     `<div class="chips" style="margin-bottom:10px">` +
-    `<span class="chip">${portraitFor(A.info)}<b>${esc(A.info.acronym)}</b> ${wa} corners ${pillFor(A.compond)}</span>` +
-    `<span class="chip">${portraitFor(B.info)}<b>${esc(B.info.acronym)}</b> ${wb} corners ${pillFor(B.compond)}</span>` +
+    `<span class="chip">${portraitFor(A.info)}<b>${esc(A.info.acronym)}</b> ${wa} corners ${pillFor(A.compound)}</span>` +
+    `<span class="chip">${portraitFor(B.info)}<b>${esc(B.info.acronym)}</b> ${wb} corners ${pillFor(B.compound)}</span>` +
     `<span class="chip">⏱️ <b>Lap delta</b> ${lapDelta === 0 ? "dead heat" : `${esc((lapDelta > 0 ? B : A).info.acronym)} by ${Math.abs(lapDelta).toFixed(3)}s`}</span>` +
-    `</div><div class="table-scroll"><table style="min-width:420px"><thead><tr>` +
-    `<th>Turn</th><th class="num">${esc(A.info.acronym)} km/h</th><th class="num">${esc(B.info.acronym)} km/h</th>` +
-    `<th class="num">Δ (A−B)</th><th>Winner</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    `</div>`;
+  ensureGridHost("h2hResult", "h2hGrid");
+  makeGrid("h2h", data, [
+    { title: "Turn", field: "turn", sorter: "string", formatter: (cell) => `<span class="best-cell">${esc(cell.getValue())}</span>` },
+    { title: `${A.info.acronym} km/h`, field: "aAvg", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getValue().toFixed(1) },
+    { title: `${B.info.acronym} km/h`, field: "bAvg", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getValue().toFixed(1) },
+    { title: "Δ (A−B)", field: "delta", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().deltaHtml },
+    { title: "Winner", field: "winner", sorter: "string", formatter: (cell) => cell.getRow().getData().winnerHtml },
+  ], "delta", "desc");
+  drawH2HMap(a, A, B);
   // sync the main speed chart to just these two
   renderSpeedChart(a, [na, nb]);
 }
@@ -1245,7 +1438,7 @@ function renderWeekend(perSession) {
   if (!ok.length) { box.innerHTML = `<p class="hint">No session could be analyzed for this weekend.</p>`; return; }
   const lines = ok.map((p) => {
     const f = p.data.driverStats[0];
-    return `<span class="chip"><b>${esc(p.session.session_name)}</b> ${esc(f.info.acronym)} ${fmtLap(f.lap.lap_duration)} ${pillFor(f.compond)}</span>`;
+    return `<span class="chip"><b>${esc(p.session.session_name)}</b> ${esc(f.info.acronym)} ${fmtLap(f.lap.lap_duration)} ${pillFor(f.compound)}</span>`;
   }).join("");
   // rows = union of corner keys in weekend order
   const order = [];
@@ -1255,71 +1448,149 @@ function renderWeekend(perSession) {
       if (!order.includes(k)) order.push(k);
     });
   }
-  const head = `<th>Turn</th>` + ok.map((p) => `<th>${esc(p.session.session_name)}</th>`).join("");
-  const body = order.map((k) => {
-    const cells = ok.map((p) => {
-      const idx = p.data.cornerResults.findIndex((c, i) => cornerKey(c, i) === k);
-      if (idx < 0) return `<td style="color:var(--muted)">—</td>`;
+  const cols = [{ title: "Turn", field: "turn", sorter: "string",
+    formatter: (cell) => `<span class="best-cell">${esc(cell.getValue())}</span>` }];
+  ok.forEach((p, i) => {
+    cols.push({ title: p.session.session_name, field: `s${i}`, sorter: "string",
+      formatter: (cell) => cell.getRow().getData()[`s${i}Html`] || `<span style="color:var(--muted)">—</span>` });
+  });
+  const data = order.map((k) => {
+    const row = { turn: k };
+    ok.forEach((p, i) => {
+      const idx = p.data.cornerResults.findIndex((c, j) => cornerKey(c, j) === k);
+      if (idx < 0) { row[`s${i}`] = ""; row[`s${i}Html`] = ""; return; }
       const t = p.data.cornerResults[idx].bestTeam;
-      return `<td><span class="swatch" style="background:${t.colour}"></span>${esc(t.team)}</td>`;
-    }).join("");
-    return `<tr><td class="best-cell">${esc(k)}</td>${cells}</tr>`;
-  }).join("");
+      row[`s${i}`] = t.team;
+      row[`s${i}Html`] = `<span class="swatch" style="background:${t.colour}"></span>${esc(t.team)}`;
+    });
+    return row;
+  });
   const failed = perSession.filter((p) => !p.data)
     .map((p) => `<span class="chip">⚠️ ${esc(p.session.session_name)}: ${esc((p.error || "failed").slice(0, 80))}</span>`).join("");
-  box.innerHTML = `<div class="chips" style="margin-bottom:10px">${lines}${failed}</div>` +
-    `<div class="table-scroll"><table style="min-width:520px"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  box.innerHTML = `<div class="chips" style="margin-bottom:10px">${lines}${failed}</div>`;
+  ensureGridHost("weekendResult", "weekendGrid");
+  makeGrid("weekend", data, cols, "turn", "asc");
 }
 
-/* ---------------- CSV export ---------------- */
-function downloadCSV(name, headers, rows) {
-  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const csv = [headers.map(q).join(","), ...rows.map((r) => r.map(q).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const el = document.createElement("a");
-  el.href = URL.createObjectURL(blob);
-  el.download = name;
-  document.body.appendChild(el);
-  el.click();
-  setTimeout(() => { try { URL.revokeObjectURL(el.href); el.remove(); } catch { /* ignore */ } }, 800);
-}
-function exportSessionCSV(which) {
-  const a = state.analysis;
-  if (!a) return;
-  const tag = `${a.session.session_name.replace(/\s+/g, "")}_${a.session.session_key}`;
-  const drv = (n) => (a.driverInfo.get(n) || {}).acronym || `#${n}`;
-  if (which === "corners") {
-    downloadCSV(`corners_${tag}.csv`,
-      ["turn", "apex_pct", "best_driver", "best_avg_kmh", "best_min_kmh", "best_team", "top3"],
-      a.cornerResults.map((c) => [
-        `T${c.number}`, (100 * c.bin / (N_BINS - 1)).toFixed(1),
-        drv(c.ranking[0].num), c.ranking[0].avg.toFixed(2), c.ranking[0].min.toFixed(1),
-        c.bestTeam.team, c.ranking.slice(0, 3).map((r) => `${drv(r.num)} (+${r.gap.toFixed(2)})`).join("; "),
-      ]));
-  } else if (which === "drivers") {
-    downloadCSV(`drivers_${tag}.csv`,
-      ["driver", "team", "best_lap_s", "tyre", "top_kmh", "avg_kmh", "corners_won", "avg_deficit_kmh"],
-      a.driverStats.map((d) => [d.info.acronym, d.info.team, d.lap.lap_duration.toFixed(3),
-        d.compound, d.topSpeed.toFixed(1), d.avgSpeed.toFixed(2), d.won, d.deficit.toFixed(3)]));
-  } else if (which === "teams") {
-    downloadCSV(`teams_${tag}.csv`,
-      ["team", "drivers", "avg_best_lap_s", "corners_won", "avg_corner_kmh", "strongest_turn"],
-      a.teamStats.map((t) => [t.team, t.drivers.map((d) => d.info.acronym).join("; "),
-        t.avgLap.toFixed(3), t.won, t.avgCorner.toFixed(2), t.strongest ?? ""]));
-  } else if (which === "sectors") {
-    downloadCSV(`sectors_${tag}.csv`,
-      ["driver", "s1_s", "s2_s", "s3_s", "best_lap_s", "i1_kmh", "i2_kmh", "st_kmh", "tyre"],
-      a.driverStats.map((d) => [d.info.acronym, d.lap.duration_sector_1 ?? "", d.lap.duration_sector_2 ?? "",
-        d.lap.duration_sector_3 ?? "", d.lap.lap_duration.toFixed(3), d.lap.i1_speed ?? "",
-        d.lap.i2_speed ?? "", d.lap.st_speed ?? "", d.compound]));
-  } else if (which === "pace") {
-    if (!a.pace || !a.pace.length) { showError("No race-pace data — run a Race or Sprint session first."); return; }
-    downloadCSV(`pace_${tag}.csv`,
-      ["driver", "stint", "compound", "tyre_age", "laps", "avg_pace_s", "deg_s_per_lap"],
-      a.pace.map((p) => [drv(p.num), p.stint, p.compound, p.age, p.n, p.avg.toFixed(3), p.slope.toFixed(4)]));
+/* ---------------- head-to-head duel map ----------------
+ * The signature moment: the same lap outline, every segment colored by
+ * whichever of the two drivers is faster there. Quiet everywhere else. */
+function drawH2HMap(a, A, B) {
+  const canvas = $("h2hMap");
+  const legend = $("h2hLegend");
+  const tA = a.traces.get(A.num), tB = a.traces.get(B.num);
+  const shape = state.mapShape;
+  const fit = fitCanvas(canvas, 420 / 900);
+  const ctx = fit.ctx;
+  ctx.clearRect(0, 0, fit.W, fit.H);
+  if (!tA || !tB || !shape || !shape.x) {
+    ctx.fillStyle = "#9aa4bd"; ctx.font = "15px sans-serif";
+    ctx.fillText("Duel map needs the track outline — it was unavailable for this session.", 24, 60);
+    if (legend) legend.textContent = "";
+    return;
+  }
+  const pix = shapePixels(shape, fit.W, fit.H);
+  const { PX, PY, n } = pix;
+  const SEGS = 220;
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (let sgm = 0; sgm < SEGS; sgm++) {
+    const b0 = Math.floor((sgm / SEGS) * (N_BINS - 1));
+    const b1 = Math.floor(((sgm + 1) / SEGS) * (N_BINS - 1));
+    const mid = Math.floor((b0 + b1) / 2);
+    const colour = tA.trace[mid] >= tB.trace[mid] ? A.info.colour : B.info.colour;
+    const i0 = Math.floor((sgm / SEGS) * (n - 1));
+    const i1 = Math.floor(((sgm + 1) / SEGS) * (n - 1));
+    ctx.strokeStyle = colour; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(PX[i0], PY[i0]); ctx.lineTo(PX[i1], PY[i1]); ctx.stroke();
+  }
+  // apex markers (small, quiet — the duel is the color)
+  ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const c of a.cornerResults) {
+    const i = Math.max(0, Math.min(n - 1, Math.round((c.bin / (N_BINS - 1)) * (n - 1))));
+    ctx.fillStyle = "#0b0e14";
+    ctx.beginPath(); ctx.arc(PX[i], PY[i], 10, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(PX[i], PY[i], 10, 0, 7); ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(String(c.number), PX[i], PY[i]);
+  }
+  if (legend) {
+    legend.innerHTML =
+      `<span><span class="swatch" style="background:${A.info.colour}"></span>${esc(A.info.acronym)} faster</span>` +
+      `<span><span class="swatch" style="background:${B.info.colour}"></span>${esc(B.info.acronym)} faster</span>`;
   }
 }
 
+/* ---------------- ECharts speed traces ---------------- */
+let speedChart = null;
+function renderSpeedChart(a, preset) {
+  const el = document.getElementById("speedChart");
+  if (!el || typeof echarts === "undefined") return;
+  if (speedChart) { try { speedChart.dispose(); } catch { /* ignore */ } speedChart = null; }
+  const sorted = [...a.driverStats].sort((x, y) => x.lap.lap_duration - y.lap.lap_duration);
+  const nums = sorted.map((d) => d.num);
+  const show = Array.isArray(preset) && preset.length
+    ? preset.filter((n) => nums.includes(n))
+    : sorted.slice(0, 6).map((d) => d.num);
+  const visible = new Set(show.length ? show : nums.slice(0, 1));
+  const STEP = 4; // resample stride: 250 points per lap is plenty on screen
+  const xs = [];
+  for (let b = 0; b < N_BINS; b += STEP) xs.push((100 * b) / (N_BINS - 1));
+  const selected = {};
+  const series = sorted.map((d) => {
+    const tr = a.traces.get(d.num).trace;
+    const data = [];
+    for (let b = 0; b < N_BINS; b += STEP) data.push(+tr[b].toFixed(1));
+    selected[d.info.acronym] = visible.has(d.num);
+    return {
+      name: d.info.acronym, type: "line", showSymbol: false, data,
+      lineStyle: { color: d.info.colour, width: visible.has(d.num) ? 2.4 : 1.2 },
+      emphasis: { focus: "series" },
+    };
+  });
+  // corner apex guides on the fastest lap's series
+  const guide = {
+    name: "turns", type: "line", showSymbol: false, data: [],
+    markLine: {
+      silent: true, symbol: "none",
+      lineStyle: { color: "rgba(255,255,255,0.28)", type: "dashed", width: 1 },
+      label: { color: "rgba(255,255,255,0.6)", fontSize: 10, position: "start" },
+      data: a.cornerResults.map((c) => ({ xAxis: +((100 * c.bin) / (N_BINS - 1)).toFixed(1), name: `T${c.number}` })),
+    },
+  };
+  speedChart = echarts.init(el);
+  speedChart.setOption({
+    backgroundColor: "transparent",
+    animationDuration: 500,
+    grid: { left: 52, right: 18, top: 30, bottom: 64 },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "#0d1322", borderColor: "#242e48", textStyle: { color: "#f2f4f9", fontSize: 12 },
+      valueFormatter: (v) => (v == null ? "—" : `${v} km/h`),
+    },
+    legend: {
+      type: "scroll", bottom: 34, textStyle: { color: "#9aa5bc", fontSize: 11 },
+      selected, inactiveColor: "#4a5570",
+    },
+    dataZoom: [
+      { type: "slider", bottom: 0, height: 22, borderColor: "#242e48", backgroundColor: "#0a0e18",
+        fillerColor: "rgba(225,6,0,0.18)", handleStyle: { color: "#e10600" }, textStyle: { color: "#6b7590" } },
+      { type: "inside" },
+    ],
+    xAxis: {
+      type: "category", data: xs.map((x) => +x.toFixed(1)), name: "lap %",
+      nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b7590", fontSize: 11 },
+      axisLine: { lineStyle: { color: "#242e48" } }, axisTick: { show: false },
+      axisLabel: { color: "#6b7590", fontSize: 10, formatter: (v) => `${v}%` },
+    },
+    yAxis: {
+      type: "value", name: "km/h", nameTextStyle: { color: "#6b7590", fontSize: 11 },
+      splitLine: { lineStyle: { color: "#1a2236" } },
+      axisLabel: { color: "#6b7590", fontSize: 10 },
+    },
+    series: [...series, guide],
+  });
+}
 /* ---------------- best-lap replay on the track map ---------------- */
 const replay = { on: false, t: 0, raf: 0, last: 0, racers: [] };
 function cumTimeFor(trace, lapDuration) {

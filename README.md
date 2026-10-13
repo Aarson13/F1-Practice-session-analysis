@@ -49,14 +49,23 @@ Then open **http://localhost:8000** (or the address `serve` prints) in Chrome/Ed
 - 📋 Session summary + 🌦️ context strip (track/air temp, wind, rain, flag timeline)
 - 🗺️ Track map coloured by fastest team per segment, numbered apexes, **best-lap replay** (animated dots), click-an-apex ↔ table-row linking
 - ↩️ Turn-by-turn table (best driver/team per corner, top 3 + gaps) — hover a row to spotlight the corner on the map
-- ⚔️ **Head-to-head**: any 2 drivers, per-corner deltas across the whole lap
+- ⚔️ **Head-to-head**: any 2 drivers, per-corner deltas across the whole lap, fought out on a two-color **duel track map**
+- 🏎️ Per-driver table with **photos + tyre compound** of each best lap
 - 🏎️ Per-driver table with **photos + tyre compound** of each best lap
 - 🏆 Per-team table (avg best lap, corners won, strongest turn)
 - ⏱️ Sectors & speed traps from each best lap
 - 🏁 Race pace & tyre degradation per stint (Race/Sprint sessions)
 - 🗓️ **Weekend view**: every session of the GP compared corner-by-corner
-- 📈 Overlaid best-lap speed traces, 🏁 official classification, ⬇️ CSV export on every table
+- 📈 Overlaid best-lap speed traces (zoomable, legend toggles), 🏁 official classification, ⬇️ CSV export on every table
 - ❓ "How this works" methodology explainer on the page
+- 🔀 **Combined practice mode**: a session-dropdown entry that pools FP1+FP2+FP3 (whichever exist) and ranks every corner on each driver's overall-best practice lap
+
+## Frontend components (pinned CDN, no build)
+
+- [Shoelace 2.18](https://shoelace.style/) — selects + buttons (dark theme, red primary tokens)
+- [Tabulator 6.3](http://tabulator.info/) — every data grid: sorting, rich cells, one-click CSV
+- [Apache ECharts 5.5](https://echarts.apache.org/) — speed traces with tooltips, zoom + legend filtering
+- Custom canvas — track map, duel map, best-lap replay (no library draws F1 track maps)
 
 ## Zero-storage, live-data design
 
