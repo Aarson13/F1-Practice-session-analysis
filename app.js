@@ -907,6 +907,32 @@ function makeGrid(name, data, columns, sortField, sortDir) {
     initialSort: sortField ? [{ column: sortField, dir: sortDir || "asc" }] : [],
   });
   grids[name] = t;
+  // Tabulator's generated subtree needs three small ownership repairs to
+  // satisfy axe aria-required-children/parent (verified live):
+  //  1. header contents rowgroup -> row (so the header rowgroup owns a row),
+  //  2. inner .tabulator-headers wrapper de-roled (transparent pass-through),
+  //  3. tabindex removed from the scroll holder: our tables are auto-height
+  //     (the page scrolls, nothing scrolls inside them), and a focusable
+  //     roleless div is not an allowed child of the grid.
+  // Nothing else is touched, so native grid/row/cell semantics,
+  // aria-sort arrows and keyboard interaction stay intact.
+  const fixTableA11y = () => {
+    try {
+      const root = document.getElementById(elId);
+      if (!root) return;
+      root.querySelectorAll('.tabulator-header-contents[role="rowgroup"]')
+        .forEach((n) => n.setAttribute("role", "row"));
+      root.querySelectorAll(".tabulator-headers[role]")
+        .forEach((n) => n.removeAttribute("role"));
+      root.querySelectorAll(".tabulator-tableholder[tabindex]")
+        .forEach((n) => n.removeAttribute("tabindex"));
+    } catch { /* headless test stubs: no live DOM */ }
+  };
+  fixTableA11y();
+  try {
+    t.on("tableBuilt", fixTableA11y);
+    t.on("renderComplete", fixTableA11y);
+  } catch { /* ignore */ }
   return t;
 }
 function downloadGridCSV(name, filename) {
@@ -1414,7 +1440,7 @@ async function runWeekend() {
     for (const s of sessions) {
       si++;
       try {
-        const r = await analyzeSessionData(s.session_key, a0.meeting, 5,
+        const r = await analyzeSessionData(s.session_key, s, a0.meeting, 5,
           (frac, text) => setStatus(`Weekend ${si}/${sessions.length} · ${s.session_name}: ${text}`, (si - 1 + frac) / sessions.length));
         perSession.push({ session: s, data: r });
       } catch (e) {

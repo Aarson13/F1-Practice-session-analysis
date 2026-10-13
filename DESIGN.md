@@ -45,3 +45,9 @@ Per the creative brief: borrow the rules of F1 broadcast timing graphics.
 - QA: Playwright-driven full analysis (Singapore 2024 FP1, top 5) with
   screenshots of every state; axe clean; no console/page/network errors
   except OpenF1 429s absorbed by the app's own retry pacing.
+- Tabulator a11y repair (verified live, not by eye): its async header nests
+  rowgroup-in-rowgroup and its scroll holder is a focusable roleless div,
+  both fatal to axe ownership rules. makeGrid re-roles the inner wrapper to
+  row and drops the holder tabindex (harmless: tables are auto-height, the
+  page scrolls), re-applied on tableBuilt + renderComplete. Full analyzed
+  state: axe CLEAN, sorting + sort arrows verified working.
