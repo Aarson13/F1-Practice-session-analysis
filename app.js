@@ -139,17 +139,19 @@ function mkOption(value, text) {
   o.textContent = text;
   return o;
 }
-async function setSelectValue(sel, value) {
+async function setSelectValue(sel, value, tries = 3) {
   const v = String(value);
-  try { sel.value = v; } catch { /* ignore */ }
-  if (sel.value === v) return true;
-  // value didn't stick (options not upgraded yet): wait for the definition
-  // and retry once instead of proceeding with a blank selection.
-  try {
-    if (typeof customElements !== "undefined") await customElements.whenDefined("sl-option");
-  } catch { /* ignore */ }
-  await sleep(60);
-  try { sel.value = v; } catch { /* ignore */ }
+  for (let i = 0; i < tries; i++) {
+    try {
+      // let the select process newly slotted options before matching:
+      // setting .value while its option list is stale silently misses.
+      if (sel.updateComplete) await sel.updateComplete;
+      sel.value = v;
+      if (sel.updateComplete) await sel.updateComplete;
+    } catch { /* ignore */ }
+    if (sel.value === v) return true;
+    await sleep(150 * (i + 1));
+  }
   return sel.value === v;
 }
 function selectValues(sel) {
@@ -276,12 +278,19 @@ async function loadFromHash() {
 }
 
 async function loadMeetings() {
-  const year = $("yearSelect").value;
+  const year = ($("yearSelect").value || "").trim();
   const gpSel = $("gpSelect");
   gpSel.disabled = true; gpSel.innerHTML = `<option value="">Loading Grands Prix…</option>`;
   $("sessionSelect").disabled = true;
   $("analyzeBtn").disabled = true;
   clearError();
+  // never hit the API with an empty/malformed year (it answers HTTP 400):
+  // either the selection hasn't landed yet or the year is invalid.
+  if (!/^\d{4}$/.test(year)) {
+    gpSel.innerHTML = `<option value="">Pick a year first</option>`;
+    showError("Pick a valid year first — the Grand Prix list needs one to load. If the year list looks empty, reload the page.");
+    return;
+  }
   try {
     const meetings = await apiGet(`${OPENF1}/meetings?year=${encodeURIComponent(year)}`, "Grand Prix list");
     if (!Array.isArray(meetings) || meetings.length === 0) {
