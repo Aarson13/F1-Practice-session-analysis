@@ -58,7 +58,7 @@ Then open **http://localhost:8000** (or the address `serve` prints) in Chrome/Ed
 - 🗓️ **Weekend view**: every session of the GP compared corner-by-corner
 - 📈 Overlaid best-lap speed traces (zoomable, legend toggles), 🏁 official classification, ⬇️ CSV export on every table
 - ❓ "How this works" methodology explainer on the page
-- 🔀 **Combined practice mode**: a session-dropdown entry that pools FP1+FP2+FP3 (whichever exist) and ranks every corner on each driver's overall-best practice lap
+- 🔀 **Combined practice mode**: a session-dropdown entry (Grand Prix weekends only — no pre-season testing) that pools FP1+FP2+FP3 (whichever exist) and ranks every corner on each driver's overall-best practice lap
 
 ## Frontend components (pinned CDN, no build)
 
@@ -89,6 +89,10 @@ Deploy anywhere static sites live (GitHub Pages, Netlify, Vercel — no backend 
 3. **Speed vs lap distance** — distance integrated from speed-over-time, resampled to 1000 progress bins, so drivers are compared at the same point on track.
 4. **Corner apexes** — official apex coordinates mapped onto the lap (fallback: auto-detected speed minima if circuit data is unreachable).
 5. **Ranking** — each corner window (±1.2% of lap distance) ranked by **average speed**; team score = mean of its drivers. Higher avg speed through the corner = better.
+
+### Weekend view (what it does)
+
+One click runs a lite analysis (top 5 drivers per session) of **every session of the weekend** — FP1, FP2, FP3, Qualifying, Sprint, Race — and builds a matrix of **which team owned each corner in each session**, plus each session's fastest lap. It answers "how did corner dominance shift as the track evolved." It takes a few minutes (dozens of live API requests); progress is shown per session and the main controls lock until it finishes.
 
 ## Hardened against real-world failures
 

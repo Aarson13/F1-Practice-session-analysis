@@ -224,6 +224,7 @@ async function loadFromHash() {
   $("gpSelect").value = String(p.m);
   await loadSessions();
   if (String(p.s) === "COMBINED") {
+    if (!isGrandPrixMeeting(state.meetingByKey.get(String(p.m)))) return false;
     if (practiceSessions(state.sessions).length < 2) return false;
   } else if (!state.sessions.some((s) => String(s.session_key) === String(p.s))) {
     return false;
@@ -288,9 +289,11 @@ async function loadSessions() {
       return;
     }
     sesSel.innerHTML = "";
-    // Combined-practice mode: one entry pooling every available practice session.
+    // Combined-practice mode: one entry pooling every available practice
+    // session — championship (Grand Prix) weekends only.
+    const meeting = state.meetingByKey.get(String(meetingKey));
     const practices = practiceSessions(state.sessions);
-    if (practices.length >= 2) {
+    if (practices.length >= 2 && isGrandPrixMeeting(meeting)) {
       sesSel.appendChild(mkOption("COMBINED",
         `All practice sessions combined (${practices.map(shortSessionName).join(" + ")})`));
     }
@@ -306,6 +309,11 @@ function practiceSessions(sessions) {
   return (sessions || [])
     .filter((s) => !s.is_cancelled && (s.session_type === "Practice" || /^Practice/i.test(s.session_name || "")))
     .sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+}
+// Combined practice is a championship-weekend feature: Grand Prix meetings
+// only (no pre-season testing or other non-championship events).
+function isGrandPrixMeeting(m) {
+  return !!m && /grand prix/i.test(m.meeting_name || "");
 }
 function shortSessionName(s) {
   return String(s.session_name || "").replace(/^Practice\s*/i, "FP").replace(/\s+/g, " ");
@@ -818,6 +826,7 @@ async function runAnalysis() {
     const progress = (frac, text) => setStatus(text, frac);
     let a;
     if (combined) {
+      if (!isGrandPrixMeeting(meeting)) throw new Error("Combined practice is only available for Grand Prix weekends.");
       const practices = practiceSessions(state.sessions);
       if (practices.length < 2) throw new Error("Fewer than 2 practice sessions are available for this event.");
       a = await analyzeCombinedPractice(practices, meeting, driverLimit, progress);
@@ -831,6 +840,8 @@ async function runAnalysis() {
     await sleep(30);
     await renderAll();
     $("results").hidden = false;
+    // ECharts measures its container at init (while hidden = 0px): resize now
+    try { if (typeof speedChart !== "undefined" && speedChart) speedChart.resize(); } catch { /* ignore */ }
     setStatus(`Done — analyzed ${a.driverStats.length} drivers over ${a.cornerResults.length} corners (${a.cornerSource} apexes). ${combined ? "All practice sessions combined." : "Only the selected session was analyzed."}`, 1);
   } catch (e) {
     console.error(e);
@@ -1431,8 +1442,10 @@ async function runWeekend() {
   if (!a0) return;
   const sessions = state.sessions.filter((s) => !s.is_cancelled);
   if (sessions.length < 2) { showError("This event has fewer than 2 sessions — nothing to compare."); return; }
-  const btn = $("weekendBtn");
-  btn.disabled = true;
+  // lock the main controls so a mid-run change can't mix two analyses
+  const locked = ["yearSelect", "gpSelect", "sessionSelect", "driverLimitSelect", "analyzeBtn", "weekendBtn"];
+  const wasEnabled = {};
+  locked.forEach((id) => { wasEnabled[id] = !$(id).disabled; $(id).disabled = true; });
   clearError();
   try {
     const perSession = [];
@@ -1454,7 +1467,8 @@ async function runWeekend() {
     console.error(e);
     showError((e && e.message) || String(e));
   } finally {
-    btn.disabled = false;
+    locked.forEach((id) => { $(id).disabled = !wasEnabled[id]; });
+    if ($("sessionSelect").disabled) $("analyzeBtn").disabled = true;
   }
 }
 function cornerKey(c, idx) { return c.official ? `T${c.number}` : `#${idx}`; }
@@ -1560,13 +1574,13 @@ function renderSpeedChart(a, preset) {
     : sorted.slice(0, 6).map((d) => d.num);
   const visible = new Set(show.length ? show : nums.slice(0, 1));
   const STEP = 4; // resample stride: 250 points per lap is plenty on screen
-  const xs = [];
-  for (let b = 0; b < N_BINS; b += STEP) xs.push((100 * b) / (N_BINS - 1));
   const selected = {};
   const series = sorted.map((d) => {
     const tr = a.traces.get(d.num).trace;
     const data = [];
-    for (let b = 0; b < N_BINS; b += STEP) data.push(+tr[b].toFixed(1));
+    for (let b = 0; b < N_BINS; b += STEP) {
+      data.push([+((100 * b) / (N_BINS - 1)).toFixed(1), +tr[b].toFixed(1)]);
+    }
     selected[d.info.acronym] = visible.has(d.num);
     return {
       name: d.info.acronym, type: "line", showSymbol: false, data,
@@ -1574,7 +1588,8 @@ function renderSpeedChart(a, preset) {
       emphasis: { focus: "series" },
     };
   });
-  // corner apex guides on the fastest lap's series
+  // corner apex guides: exact positions need a value x-axis (category axes
+  // only match whole categories, which silently drops most guides)
   const guide = {
     name: "turns", type: "line", showSymbol: false, data: [],
     markLine: {
@@ -1592,7 +1607,16 @@ function renderSpeedChart(a, preset) {
     tooltip: {
       trigger: "axis",
       backgroundColor: "#0d1322", borderColor: "#242e48", textStyle: { color: "#f2f4f9", fontSize: 12 },
-      valueFormatter: (v) => (v == null ? "—" : `${v} km/h`),
+      formatter: (params) => {
+        if (!params || !params.length) return "";
+        const x = Array.isArray(params[0].value) ? params[0].value[0] : params[0].axisValue;
+        let h = `<b>${x}% of lap</b>`;
+        params.filter((p) => p.seriesName !== "turns").slice(0, 12).forEach((p) => {
+          const y = Array.isArray(p.value) ? p.value[1] : p.value;
+          h += `<br/>${p.marker} ${esc(p.seriesName)}: ${y} km/h`;
+        });
+        return h;
+      },
     },
     legend: {
       type: "scroll", bottom: 34, textStyle: { color: "#9aa5bc", fontSize: 11 },
@@ -1604,13 +1628,13 @@ function renderSpeedChart(a, preset) {
       { type: "inside" },
     ],
     xAxis: {
-      type: "category", data: xs.map((x) => +x.toFixed(1)), name: "lap %",
+      type: "value", min: 0, max: 100, name: "lap %",
       nameLocation: "middle", nameGap: 26, nameTextStyle: { color: "#6b7590", fontSize: 11 },
-      axisLine: { lineStyle: { color: "#242e48" } }, axisTick: { show: false },
+      axisLine: { lineStyle: { color: "#242e48" } },
       axisLabel: { color: "#6b7590", fontSize: 10, formatter: (v) => `${v}%` },
     },
     yAxis: {
-      type: "value", name: "km/h", nameTextStyle: { color: "#6b7590", fontSize: 11 },
+      type: "value", scale: true, name: "km/h", nameTextStyle: { color: "#6b7590", fontSize: 11 },
       splitLine: { lineStyle: { color: "#1a2236" } },
       axisLabel: { color: "#6b7590", fontSize: 10 },
     },
