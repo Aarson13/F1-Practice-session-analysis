@@ -154,6 +154,11 @@ function selectOptionCount(sel) {
  * SELECTOR FLOW: year -> grand prix -> session (all session types)
  * ===================================================================== */
 async function init() {
+  // Shoelace upgrades sl-select asynchronously: setting .value before the
+  // definition loads is silently lost. Gate population on the definition.
+  try {
+    if (typeof customElements !== "undefined") await customElements.whenDefined("sl-select");
+  } catch { /* ignore — native fallback still works */ }
   const yearSel = $("yearSelect");
   const thisYear = new Date().getFullYear();
   yearSel.innerHTML = "";
@@ -171,14 +176,26 @@ async function init() {
   $("weekendBtn").addEventListener("click", runWeekend);
   $("replayBtn").addEventListener("click", toggleReplay);
   $("trackMap").addEventListener("click", onTrackClick);
-  $("h2hA").addEventListener("sl-change", renderH2H);
-  $("h2hB").addEventListener("sl-change", renderH2H);
+  $("h2hA").addEventListener("sl-change", () => { renderH2H().catch((e) => console.warn(e)); });
+  $("h2hB").addEventListener("sl-change", () => { renderH2H().catch((e) => console.warn(e)); });
   $("cornerCsvBtn").addEventListener("click", () => downloadGridCSV("corner", `corners_${sessionTag()}.csv`));
   $("driverCsvBtn").addEventListener("click", () => downloadGridCSV("driver", `drivers_${sessionTag()}.csv`));
   $("teamCsvBtn").addEventListener("click", () => downloadGridCSV("team", `teams_${sessionTag()}.csv`));
   $("sectorCsvBtn").addEventListener("click", () => downloadGridCSV("sector", `sectors_${sessionTag()}.csv`));
   $("paceCsvBtn").addEventListener("click", () => downloadGridCSV("pace", `pace_${sessionTag()}.csv`));
-  window.addEventListener("resize", () => { try { if (speedChart) speedChart.resize(); } catch { /* ignore */ } });
+  $("resultTabs").addEventListener("sl-tab-show", (e) => {
+    refreshTab(e.detail && e.detail.name).catch((err) => console.warn(err));
+  });
+  let resizeTimer = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      try {
+        if (speedChart) speedChart.resize();
+        if (state.analysis && !replay.on) redrawStaticMap();
+      } catch { /* ignore */ }
+    }, 250);
+  });
   $("resetBtn").addEventListener("click", () => {
     $("results").hidden = true; clearError();
     $("statusBox").hidden = true; $("progressBar").style.width = "0%";
@@ -821,6 +838,7 @@ async function runAnalysis() {
   const locked = ["yearSelect", "gpSelect", "sessionSelect", "driverLimitSelect", "analyzeBtn"];
   const wasEnabled = {};
   locked.forEach((id) => { wasEnabled[id] = !$(id).disabled; $(id).disabled = true; });
+  try { stopReplay(); } catch { /* ignore */ }
 
   try {
     const progress = (frac, text) => setStatus(text, frac);
@@ -840,6 +858,10 @@ async function runAnalysis() {
     await sleep(30);
     await renderAll();
     $("results").hidden = false;
+    try {
+      const tg = document.getElementById("resultTabs");
+      if (tg && tg.show) tg.show("overview");
+    } catch { /* ignore */ }
     // ECharts measures its container at init (while hidden = 0px): resize now
     try { if (typeof speedChart !== "undefined" && speedChart) speedChart.resize(); } catch { /* ignore */ }
     setStatus(`Done — analyzed ${a.driverStats.length} drivers over ${a.cornerResults.length} corners (${a.cornerSource} apexes). ${combined ? "All practice sessions combined." : "Only the selected session was analyzed."}`, 1);
@@ -855,20 +877,75 @@ async function runAnalysis() {
 /* =====================================================================
  * RENDERING
  * ===================================================================== */
+/* ---------------- tab refresh engine ----------------
+ * Grids, charts and canvases built while their tab is hidden lay out at
+ * 0px. renderAll still builds all data up front; each tab then refreshes
+ * its own visuals on show. Cheap: no network, redraws only. */
+async function awaitVisible(el, timeout = 3000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeout) {
+    try { if (el && el.clientWidth > 10) return true; } catch { /* ignore */ }
+    await sleep(100);
+  }
+  return false;
+}
+async function refreshTab(name) {
+  const a = state.analysis;
+  if (!a) return;
+  try {
+    // Shoelace swaps panels asynchronously: wait until the incoming panel
+    // has real dimensions, or canvases measure 0px and render soft.
+    if (name === "track" || name === "duel" || name === "traces") {
+      const el = name === "track" ? $("trackMap") : name === "duel" ? $("h2hMap") : $("speedChart");
+      await awaitVisible(el);
+    }
+    if (!state.builtTabs.has(name)) { await ensureTabBuilt(name); return; }
+    if (!state.builtTabs.has(name)) { await ensureTabBuilt(name); return; }
+    if (name === "track") { if (!replay.on) drawTrackMap(a, state.highlightBin); }
+    else if (name === "traces") { if (speedChart) speedChart.resize(); else renderSpeedChart(a, null); }
+    else if (name === "duel") {
+      const pair = currentDuelPair();
+      if (pair && pair.A) drawH2HMap(a, pair.A, pair.B);
+      if (grids.h2h) grids.h2h.redraw(true);
+    }
+    else if (name === "corners") { if (grids.corner) grids.corner.redraw(true); }
+    else if (name === "drivers") {
+      if (grids.driver) grids.driver.redraw(true);
+      if (grids.team) grids.team.redraw(true);
+    }
+    else if (name === "sectors") { if (grids.sector) grids.sector.redraw(true); }
+    else if (name === "pace") { if (grids.pace) grids.pace.redraw(true); }
+    else if (name === "weekend") { if (grids.weekend) grids.weekend.redraw(true); }
+    else if (name === "classification") { if (grids.result) grids.result.redraw(true); }
+  } catch (e) { console.warn("tab refresh failed", e); }
+}
+
 async function renderAll() {
   const a = state.analysis;
-  renderSummary(a);
-  renderContext(a);
-  renderCornerTable(a);
-  renderDriverTable(a);
-  renderTeamTable(a);
-  renderSectorTable(a);
-  renderPace(a);
-  await renderTrackMap(a);
-  renderSpeedChart(a, null);
-  renderClassification(a);
+  state.builtTabs = new Set();
+  state.rawShape = null;
+  state.highlightBin = null;
   populateH2H(a);
-  renderH2H();
+  gatePaceTab(a);
+  await ensureTabBuilt("overview");
+}
+/* Lazy tab builds: grids/charts/canvases constructed inside a hidden
+ * tab-panel lay out at 0px and Tabulator never paints rows there, so
+ * each tab builds on first show (data is ready up front; no network). */
+async function ensureTabBuilt(name) {
+  const a = state.analysis;
+  if (!a) return;
+  if (state.builtTabs.has(name)) return;
+  state.builtTabs.add(name);
+  if (name === "overview") { renderSummary(a); renderContext(a); }
+  else if (name === "track") { await renderTrackMap(a); }
+  else if (name === "corners") { renderCornerTable(a); }
+  else if (name === "duel") { await renderH2H(); }
+  else if (name === "drivers") { renderDriverTable(a); renderTeamTable(a); }
+  else if (name === "sectors") { renderSectorTable(a); }
+  else if (name === "pace") { renderPace(a); }
+  else if (name === "traces") { renderSpeedChart(a, null); }
+  else if (name === "classification") { renderClassification(a); }
 }
 
 function pillFor(compound) {
@@ -885,6 +962,22 @@ function portraitFor(info, size) {
 
 function renderSummary(a) {
   const { session, meeting } = a;
+  const hero = $("circuitHero");
+  if (meeting && (meeting.circuit_image || meeting.meeting_name)) {
+    hero.hidden = false;
+    const img = meeting.circuit_image
+      ? `<img class="circuit-photo" loading="lazy" decoding="async" src="${esc(meeting.circuit_image)}" alt="${esc(meeting.circuit_short_name || "circuit")} track map" onerror="this.remove()" />`
+      : "";
+    const flag = meeting.country_flag
+      ? `<img class="flag-img" loading="lazy" decoding="async" src="${esc(meeting.country_flag)}" alt="" onerror="this.remove()" />`
+      : "";
+    hero.innerHTML =
+      `${img}<div class="circuit-meta"><h3>${flag}${esc(meeting.meeting_name || "")}</h3>` +
+      `<p>${esc([meeting.location, meeting.country_name].filter(Boolean).join(" · "))}</p></div>`;
+  } else {
+    hero.hidden = true;
+    hero.innerHTML = "";
+  }
   $("sessionMeta").innerHTML =
     `<div><b>Event</b>${esc(meeting ? meeting.meeting_name : session.meeting_key)} ${meeting ? `· ${esc(meeting.location)}` : ""}</div>` +
     `<div><b>Session</b>${esc(session.session_name)} (${esc(session.session_type)})</div>` +
@@ -1058,6 +1151,13 @@ function cleanShape(xs, ys) {
   }
   return x.length >= 10 ? { x, y } : null;
 }
+async function ensureRawShape(a) {
+  if (!state.rawShape) {
+    try { state.rawShape = await getTrackShape(a); }
+    catch (e) { console.warn("track shape failed", e); state.rawShape = null; }
+  }
+  return state.rawShape;
+}
 async function getTrackShape(a) {
   if (a.circuit && Array.isArray(a.circuit.x) && a.circuit.x.length > 10) {
     const clean = cleanShape(a.circuit.x, a.circuit.y || []);
@@ -1120,8 +1220,7 @@ async function renderTrackMap(a) {
   const ctx = pre.ctx;
   ctx.clearRect(0, 0, pre.W, pre.H);
   setStatus("Drawing track map…", 0.97);
-  let shape = null;
-  try { shape = await getTrackShape(a); } catch (e) { console.warn("track shape failed", e); }
+  const shape = await ensureRawShape(a);
   if (!shape) {
     ctx.fillStyle = "#9aa4bd"; ctx.font = "16px sans-serif";
     ctx.fillText("Track outline unavailable (location data missing for this session).", 30, 60);
@@ -1339,10 +1438,11 @@ function renderSectorTable(a) {
 }
 
 /* ---------------- race pace & degradation ---------------- */
+function gatePaceTab(a) {
+  try { $("paceTab").disabled = !(a.pace && a.pace.length); } catch { /* ignore */ }
+}
 function renderPace(a) {
-  const card = $("racePaceCard");
-  if (!a.pace || a.pace.length === 0) { card.hidden = true; return; }
-  card.hidden = false;
+  if (!a.pace || !a.pace.length) return;
   const data = a.pace.map((p) => {
     const info = a.driverInfo.get(p.num) || { acronym: `#${p.num}`, colour: "#999", img: "" };
     return {
@@ -1394,14 +1494,32 @@ function ensureGridHost(afterId, gridId) {
   }
   return host;
 }
-function renderH2H() {
+function readDuelSelect(id, fallbackNum) {
+  const sel = $(id);
+  const v = parseInt(sel.value, 10);
+  if (Number.isFinite(v)) return v;
+  // value assignment may have raced sl-option registration: re-assert now
+  // (long after upgrade) and use the fallback.
+  try { sel.value = String(fallbackNum); } catch { /* ignore */ }
+  return fallbackNum;
+}
+function currentDuelPair() {
+  const a = state.analysis;
+  if (!a || a.driverStats.length < 2) return null;
+  const na = readDuelSelect("h2hA", a.driverStats[0].num);
+  const nb = readDuelSelect("h2hB", a.driverStats[1].num);
+  if (na === nb) return { same: true };
+  const A = a.driverStats.find((d) => d.num === na), B = a.driverStats.find((d) => d.num === nb);
+  return A && B ? { A, B, na, nb } : null;
+}
+async function renderH2H() {
   const a = state.analysis;
   const box = $("h2hResult");
   if (!a) return;
-  const na = parseInt($("h2hA").value, 10), nb = parseInt($("h2hB").value, 10);
-  const A = a.driverStats.find((d) => d.num === na), B = a.driverStats.find((d) => d.num === nb);
-  if (!A || !B) { box.innerHTML = `<p class="hint">Select two drivers to compare.</p>`; return; }
-  if (na === nb) { box.innerHTML = `<p class="hint">Pick two <strong>different</strong> drivers.</p>`; return; }
+  const pair = currentDuelPair();
+  if (!pair) { box.innerHTML = `<p class="hint">Select two drivers to compare.</p>`; return; }
+  if (pair.same) { box.innerHTML = `<p class="hint">Pick two <strong>different</strong> drivers.</p>`; return; }
+  const { A, B, na, nb } = pair;
   let wa = 0, wb = 0;
   const data = a.cornerResults.map((c) => {
     const ra = c.ranking.find((r) => r.num === na), rb = c.ranking.find((r) => r.num === nb);
@@ -1431,7 +1549,7 @@ function renderH2H() {
     { title: "Δ (A−B)", field: "delta", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().deltaHtml },
     { title: "Winner", field: "winner", sorter: "string", formatter: (cell) => cell.getRow().getData().winnerHtml },
   ], "delta", "desc");
-  drawH2HMap(a, A, B);
+  await drawH2HMap(a, A, B);
   // sync the main speed chart to just these two
   renderSpeedChart(a, [na, nb]);
 }
@@ -1515,11 +1633,11 @@ function renderWeekend(perSession) {
 /* ---------------- head-to-head duel map ----------------
  * The signature moment: the same lap outline, every segment colored by
  * whichever of the two drivers is faster there. Quiet everywhere else. */
-function drawH2HMap(a, A, B) {
+async function drawH2HMap(a, A, B) {
   const canvas = $("h2hMap");
   const legend = $("h2hLegend");
   const tA = a.traces.get(A.num), tB = a.traces.get(B.num);
-  const shape = state.mapShape;
+  const shape = await ensureRawShape(a);
   const fit = fitCanvas(canvas, 420 / 900);
   const ctx = fit.ctx;
   ctx.clearRect(0, 0, fit.W, fit.H);

@@ -1,19 +1,20 @@
 /* =====================================================================
- * F1 Session Analyzer — broadcast-timing design system
+ * F1 Session Analyzer — minimal timing system
  * ---------------------------------------------------------------------
- * Shape rule (locked): cards 16px · controls 10px · pills 999px.
- * Color lock: carbon neutrals + ONE accent (F1 red). Team colors appear
+ * Shape rule (locked): cards 14px · controls 10px · pills 999px.
+ * Color lock: near-flat carbon + ONE accent (F1 red). Team colors appear
  * only as data (swatches, map segments, chart lines) — never as chrome.
  * Type: Barlow Condensed (display, italic) + Barlow (body), tabular nums.
- * Components: Shoelace (controls) + Tabulator (grids) + ECharts (traces),
+ * Components: Shoelace (controls, tabs) + Tabulator (grids) + ECharts,
  * all themed below to this system.
+ * Perf: flat surfaces (no repaint-heavy fixed textures), content-visibility
+ * on cards, debounced resize redraws in JS.
  * ===================================================================== */
 :root {
-  --bg0: #07080c;
-  --bg1: #0d1017;
-  --card: #121724;
-  --card-hi: #171e30;
-  --line: #242e48;
+  --bg0: #090b10;
+  --bg1: #0d1119;
+  --card: #11161f;
+  --line: #232c44;
   --line-soft: #1a2236;
   --text: #f2f4f9;
   --muted: #9aa5bc;
@@ -23,13 +24,12 @@
   --accent-deep: #8f0400;
   --good: #34d17b;
   --warn: #ffb020;
-  --radius-card: 16px;
+  --radius-card: 14px;
   --radius-ctl: 10px;
   --font-d: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   --font-b: "Barlow", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  /* Shoelace theme bridge — dark-ramp reds (light tints would blow out
-     option fills and switch fills on the dark theme) */
+  /* Shoelace theme bridge — dark-ramp reds */
   --sl-color-primary-50: #2b0603;
   --sl-color-primary-100: #430a05;
   --sl-color-primary-200: #631007;
@@ -51,16 +51,9 @@ body {
   color: var(--text);
   font-family: var(--font-b);
   background:
-    radial-gradient(1100px 480px at 85% -8%, rgba(225, 6, 0, 0.07), transparent 60%),
-    radial-gradient(900px 500px at -10% 20%, rgba(64, 86, 140, 0.10), transparent 55%),
+    radial-gradient(1000px 420px at 85% -8%, rgba(225, 6, 0, 0.05), transparent 60%) fixed,
     linear-gradient(180deg, var(--bg1), var(--bg0) 40%) fixed,
     var(--bg0);
-}
-body::before { /* carbon texture, fixed, pointer-transparent */
-  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
-  background-image:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.014) 0 2px, transparent 2px 5px),
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.014) 0 2px, transparent 2px 5px);
 }
 main, .topbar { position: relative; z-index: 1; }
 ::selection { background: var(--accent); color: #fff; }
@@ -68,52 +61,55 @@ main, .topbar { position: relative; z-index: 1; }
 /* ---------------- top bar ---------------- */
 .topbar {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 12px 28px; border-bottom: 1px solid var(--line-soft);
-  background: rgba(7, 8, 12, 0.82); backdrop-filter: blur(10px);
-  position: sticky; top: 0; z-index: 20;
+  padding: 10px 24px; border-bottom: 1px solid var(--line-soft);
+  background: rgba(9, 11, 16, 0.88); backdrop-filter: blur(10px);
+  position: sticky; top: 0; z-index: 20; min-height: 60px;
 }
-.topbar::after { /* red speed-line under the bar */
+.topbar::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
   background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 22%, transparent 60%);
 }
-.brand { display: flex; gap: 13px; align-items: center; }
-.brand .flag { font-size: 30px; transform: skewX(-6deg); display: inline-block; }
+.brand { display: flex; gap: 12px; align-items: center; }
+.brand .flag { font-size: 26px; transform: skewX(-6deg); display: inline-block; }
 .brand h1 {
   margin: 0; font-family: var(--font-d); font-style: italic; font-weight: 700;
-  font-size: 25px; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1;
+  font-size: 23px; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1;
 }
 .brand h1 em { color: var(--accent-hi); font-style: italic; }
-.brand p { margin: 3px 0 0; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; letter-spacing: 0.05em; }
 
 /* ---------------- layout ---------------- */
-main { max-width: 1120px; margin: 0 auto; padding: 26px 20px 70px; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 70px; }
 .card {
   position: relative;
-  background: linear-gradient(180deg, var(--card-hi), var(--card) 30%);
+  background: var(--card);
   border: 1px solid var(--line); border-radius: var(--radius-card);
-  padding: 22px 24px; margin-bottom: 22px;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  overflow: hidden;
+  padding: 20px 22px; margin-bottom: 18px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  content-visibility: auto; contain-intrinsic-size: auto 420px;
 }
-.card::before { /* red corner tick */
-  content: ""; position: absolute; top: 0; left: 0; width: 56px; height: 3px;
+.card::before {
+  content: ""; position: absolute; top: 0; left: 0; width: 44px; height: 3px;
   background: linear-gradient(90deg, var(--accent), transparent);
 }
+/* wide tables break out of the column so nothing feels congested */
+@media (min-width: 1400px) {
+  .card-wide { margin-left: -90px; margin-right: -90px; }
+}
 .card h2 {
-  margin: 0 0 10px; font-family: var(--font-d); font-style: italic; font-weight: 700;
-  font-size: 24px; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1.05;
+  margin: 0 0 8px; font-family: var(--font-d); font-style: italic; font-weight: 700;
+  font-size: 21px; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1.05;
   display: flex; align-items: center; gap: 10px;
 }
 .tick {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 34px; height: 30px; padding: 0 8px;
+  min-width: 30px; height: 27px; padding: 0 7px;
   background: var(--accent); color: #fff;
-  font-family: var(--font-d); font-style: italic; font-weight: 700; font-size: 17px;
+  font-family: var(--font-d); font-style: italic; font-weight: 700; font-size: 15px;
   letter-spacing: 0.05em; transform: skewX(-12deg); border-radius: 4px;
-  box-shadow: 0 4px 14px rgba(225, 6, 0, 0.35);
 }
 .tick > span { transform: skewX(12deg); display: inline-block; }
-.hint { color: var(--muted); font-size: 13.5px; line-height: 1.6; margin: 0 0 14px; max-width: 78ch; }
+.hint { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 12px; max-width: 78ch; }
 .hint code {
   background: #0a0e18; padding: 1px 7px; border-radius: 6px;
   border: 1px solid var(--line); font-size: 12.5px; color: var(--text);
@@ -121,13 +117,20 @@ main { max-width: 1120px; margin: 0 auto; padding: 26px 20px 70px; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
 .card-head h2 { margin: 0; }
 
-/* results entrance */
-#results:not([hidden]) > .card { animation: rise 0.55s var(--ease-out) both; }
-#results:not([hidden]) > .card:nth-child(2) { animation-delay: 0.05s; }
-#results:not([hidden]) > .card:nth-child(3) { animation-delay: 0.1s; }
-#results:not([hidden]) > .card:nth-child(4) { animation-delay: 0.15s; }
-#results:not([hidden]) > .card:nth-child(n+5) { animation-delay: 0.2s; }
-@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+/* ---------------- tab navigation ---------------- */
+#resultTabs::part(nav) {
+  position: sticky; top: 61px; z-index: 15;
+  background: rgba(9, 11, 16, 0.92); backdrop-filter: blur(10px);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 4px 6px; margin-bottom: 16px;
+}
+#resultTabs sl-tab::part(base) {
+  font-family: var(--font-d); font-style: italic; font-weight: 600;
+  font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 9px 14px; color: var(--muted); white-space: nowrap;
+}
+#resultTabs sl-tab[active]::part(base) { color: #fff; }
+#resultTabs::part(active-tab-indicator) { background: var(--accent); height: 2px; }
 
 /* ---------------- Shoelace control theming ---------------- */
 .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
@@ -141,8 +144,6 @@ sl-select::part(form-control-label) { color: var(--muted); font-size: 11.5px; fo
 sl-select::part(listbox) { background: #0d1322; border: 1px solid var(--line);
   border-radius: 12px; padding: 6px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05); }
-/* Full control of option rows: outbids the internals (incl. the solid
-   .option--current fill) so every state stays on-system. */
 sl-option::part(base) {
   background-color: transparent; color: var(--text);
   padding: 10px 14px; font-size: 14px; font-weight: 600;
@@ -159,7 +160,6 @@ sl-button::part(base) { border-radius: var(--radius-ctl); font-weight: 800; min-
 sl-button[variant="primary"]::part(base) {
   background: linear-gradient(180deg, #d80700, var(--accent) 55%, var(--accent-deep));
   border-color: rgba(255, 255, 255, 0.14); color: #fff;
-  box-shadow: 0 8px 22px rgba(225, 6, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 sl-button[variant="primary"]:not([disabled])::part(base):hover { filter: brightness(1.12); }
 sl-button[variant="default"]::part(base) { background: rgba(255, 255, 255, 0.03);
@@ -194,7 +194,13 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   border-left: 4px solid var(--accent); padding: 12px 15px; border-radius: 10px; font-size: 13.5px;
 }
 
-/* ---------------- summary ---------------- */
+/* ---------------- summary + circuit hero ---------------- */
+.circuit-hero { display: flex; gap: 18px; align-items: center; margin-bottom: 14px; }
+.circuit-photo { height: 104px; width: auto; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55)); }
+.circuit-meta h3 { margin: 0 0 4px; font-family: var(--font-d); font-style: italic;
+  font-weight: 700; font-size: 22px; letter-spacing: 0.04em; text-transform: uppercase; }
+.circuit-meta p { margin: 0; color: var(--muted); font-size: 13px; }
+.flag-img { height: 15px; border-radius: 3px; vertical-align: -2px; margin-right: 7px; }
 .meta { display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: 14px; margin-bottom: 13px; }
 .meta b { color: var(--faint); font-weight: 700; margin-right: 7px; font-size: 11px;
   letter-spacing: 0.12em; text-transform: uppercase; }
@@ -205,26 +211,21 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   display: inline-flex; align-items: center; gap: 2px;
 }
 .chip b { margin-right: 6px; color: var(--text); }
-.swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px; }
 
 /* ---------------- track maps ---------------- */
 .map-wrap {
-  background: radial-gradient(600px 300px at 50% 0%, rgba(64, 86, 140, 0.12), transparent 70%), #080b13;
-  border: 1px solid var(--line); border-radius: 12px; padding: 10px;
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.55);
+  background: #080b13; border: 1px solid var(--line); border-radius: 12px; padding: 10px;
 }
 .map-wrap canvas { width: 100%; height: auto; display: block; border-radius: 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
 
 /* ---------------- Tabulator grid theming ---------------- */
-.grid { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: rgba(0, 0, 0, 0.22); }
+.grid { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: rgba(0, 0, 0, 0.2); }
 /* NOTE: .grid.tabulator is one element (no space) — Tabulator adds its
    class to our container. Descendant selectors below target its parts. */
 .grid.tabulator { background: transparent; border: none; font-family: var(--font-b);
   font-size: 13.5px; color: var(--text); }
-.grid .tabulator-tableholder, .grid .tabulator-table { background: transparent; }
-/* Tabulator scopes its table bg at 0,3,0 — outbid it: */
 .grid.tabulator .tabulator-tableholder .tabulator-table { background: transparent; }
 .grid .tabulator-header { background: #0c1120; border-bottom: 1px solid var(--line); }
 .grid .tabulator-col { background: #0c1120 !important; border-right: 1px solid var(--line-soft) !important; }
@@ -233,10 +234,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .grid .tabulator-col[aria-sort="ascending"] .tabulator-col-title::after { content: " ▲"; color: var(--accent-hi); }
 .grid .tabulator-col[aria-sort="descending"] .tabulator-col-title::after { content: " ▼"; color: var(--accent-hi); }
 .grid .tabulator-row { background: transparent; border-bottom: 1px solid var(--line-soft); color: var(--text); }
-.grid .tabulator-row:hover { background: rgba(255, 255, 255, 0.035) !important; }
-.grid .tabulator-row.tabulator-row-even { background: rgba(255, 255, 255, 0.014); }
-.grid .tabulator-row .tabulator-cell { color: var(--text); }
-.grid .tabulator-cell { font-variant-numeric: tabular-nums; }
+.grid .tabulator-row:hover { background: rgba(255, 255, 255, 0.03) !important; }
+.grid .tabulator-row.tabulator-row-even { background: rgba(255, 255, 255, 0.012); }
+.grid .tabulator-row .tabulator-cell { color: var(--text); font-variant-numeric: tabular-nums; }
 .grid .tabulator-cell.flash { animation: rowflash 2s; }
 @keyframes rowflash { 0%, 40% { background: rgba(225, 6, 0, 0.3); } 100% { background: transparent; } }
 .grid .tabulator-footer { background: #0c1120; border-top: 1px solid var(--line); color: var(--faint); }
@@ -246,8 +246,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: rgba(52, 209, 123, 0.13); color: var(--good); border: 1px solid rgba(52, 209, 123, 0.4); }
 .portrait {
   width: 28px; height: 28px; border-radius: 50%; object-fit: cover; object-position: top center;
-  vertical-align: -8px; margin-right: 8px; background: #0a0e18;
-  border: 1px solid #3a4770; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  vertical-align: -8px; margin-right: 8px; background: #0a0e18; border: 1px solid #3a4770;
 }
 .pill { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 3px 10px;
   border-radius: 99px; border: 1px solid var(--line); letter-spacing: 0.08em; }
@@ -258,7 +257,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 /* ---------------- ECharts traces ---------------- */
 .chart { height: 400px; background: #080b13; border: 1px solid var(--line);
-  border-radius: 12px; padding: 6px; box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.55); }
+  border-radius: 12px; padding: 6px; }
 
 /* ---------------- explainer ---------------- */
 .how p { color: var(--muted); font-size: 13.5px; line-height: 1.65; margin: 0 0 10px; max-width: 85ch; }
@@ -267,12 +266,13 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 /* ---------------- responsive ---------------- */
 @media (max-width: 720px) {
   main { padding: 18px 12px 50px; }
-  .card { padding: 17px 15px; }
-  .card h2 { font-size: 20px; }
+  .card { padding: 17px 15px; content-visibility: visible; }
+  .card h2 { font-size: 19px; }
   .topbar { padding: 10px 14px; }
   .brand h1 { font-size: 20px; }
-  .powered { display: none; }
   .chart { height: 300px; }
+  .circuit-photo { height: 76px; }
+  #resultTabs::part(nav) { top: 57px; }
 }
 @media (max-width: 640px) { .topbar { flex-direction: column; align-items: flex-start; } }
 
@@ -280,5 +280,4 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
-  #results:not([hidden]) > .card { animation: none; }
 }

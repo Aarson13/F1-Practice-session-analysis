@@ -46,6 +46,8 @@ Then open **http://localhost:8000** (or the address `serve` prints) in Chrome/Ed
 
 ## What you get per analysis
 
+Results open in tabs (Overview, Track Map, Corners, Head-to-Head, Drivers & Teams, Sectors, Race Pace, Weekend, Traces, Classification, Guide) — each view builds when first opened. The Overview shows the selected circuit's track photo.
+
 - 📋 Session summary + 🌦️ context strip (track/air temp, wind, rain, flag timeline)
 - 🗺️ Track map coloured by fastest team per segment, numbered apexes, **best-lap replay** (animated dots), click-an-apex ↔ table-row linking
 - ↩️ Turn-by-turn table (best driver/team per corner, top 3 + gaps) — hover a row to spotlight the corner on the map
