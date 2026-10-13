@@ -86,7 +86,6 @@ main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 70px; }
   border: 1px solid var(--line); border-radius: var(--radius-card);
   padding: 20px 22px; margin-bottom: 18px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-  content-visibility: auto; contain-intrinsic-size: auto 420px;
 }
 .card::before {
   content: ""; position: absolute; top: 0; left: 0; width: 44px; height: 3px;
@@ -266,7 +265,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 /* ---------------- responsive ---------------- */
 @media (max-width: 720px) {
   main { padding: 18px 12px 50px; }
-  .card { padding: 17px 15px; content-visibility: visible; }
+  .card { padding: 17px 15px; }
   .card h2 { font-size: 19px; }
   .topbar { padding: 10px 14px; }
   .brand h1 { font-size: 20px; }

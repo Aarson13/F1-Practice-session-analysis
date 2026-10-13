@@ -132,14 +132,29 @@ const state = {
 
 /* ---------------- Shoelace select helpers ---------------- */
 function mkOption(value, text) {
+  // setAttribute (not .value): attributes survive custom-element upgrade
+  // regardless of timing; properties set pre-upgrade can be silently lost.
   const o = document.createElement("sl-option");
-  o.value = String(value);
+  o.setAttribute("value", String(value));
   o.textContent = text;
   return o;
 }
+async function setSelectValue(sel, value) {
+  const v = String(value);
+  try { sel.value = v; } catch { /* ignore */ }
+  if (sel.value === v) return true;
+  // value didn't stick (options not upgraded yet): wait for the definition
+  // and retry once instead of proceeding with a blank selection.
+  try {
+    if (typeof customElements !== "undefined") await customElements.whenDefined("sl-option");
+  } catch { /* ignore */ }
+  await sleep(60);
+  try { sel.value = v; } catch { /* ignore */ }
+  return sel.value === v;
+}
 function selectValues(sel) {
-  if (sel.querySelectorAll) return [...sel.querySelectorAll("sl-option")].map((o) => o.value);
-  return [...(sel.options || [])].map((o) => o.value);
+  const opts = sel.querySelectorAll ? [...sel.querySelectorAll("sl-option")] : [...(sel.options || [])];
+  return opts.map((o) => (o.getAttribute ? o.getAttribute("value") ?? o.value : o.value));
 }
 function setSelectOptions(sel, items, placeholder) {
   sel.innerHTML = "";
@@ -170,7 +185,7 @@ async function init() {
   const thisYear = new Date().getFullYear();
   yearSel.innerHTML = "";
   for (let y = thisYear; y >= 2023; y--) yearSel.appendChild(mkOption(y, String(y)));
-  yearSel.value = String(thisYear);
+  await setSelectValue(yearSel, thisYear);
   yearSel.addEventListener("sl-change", loadMeetings);
   $("gpSelect").addEventListener("sl-change", loadSessions);
   $("sessionSelect").addEventListener("sl-change", () => {
@@ -242,10 +257,10 @@ async function loadFromHash() {
   const p = Object.fromEntries(location.hash.replace(/^#/, "").split("&").map((kv) => kv.split("=")));
   if (!p.y || !p.m || !p.s) return false;
   if (!selectValues($("yearSelect")).includes(p.y)) return false;
-  $("yearSelect").value = p.y;
+  await setSelectValue($("yearSelect"), p.y);
   await loadMeetings();
   if (!state.meetingByKey.has(String(p.m))) return false;
-  $("gpSelect").value = String(p.m);
+  await setSelectValue($("gpSelect"), String(p.m));
   await loadSessions();
   if (String(p.s) === "COMBINED") {
     if (!isGrandPrixMeeting(state.meetingByKey.get(String(p.m)))) return false;
@@ -253,7 +268,7 @@ async function loadFromHash() {
   } else if (!state.sessions.some((s) => String(s.session_key) === String(p.s))) {
     return false;
   }
-  $("sessionSelect").value = String(p.s);
+  await setSelectValue($("sessionSelect"), String(p.s));
   $("analyzeBtn").disabled = false;
   $("copyLinkBtn").disabled = false;
   await runAnalysis();
@@ -932,7 +947,7 @@ async function renderAll() {
   state.builtTabs = new Set();
   state.rawShape = null;
   state.highlightBin = null;
-  populateH2H(a);
+  await populateH2H(a);
   gatePaceTab(a);
   await ensureTabBuilt("overview");
 }
@@ -1476,7 +1491,7 @@ function renderPace(a) {
 }
 
 /* ---------------- head-to-head ---------------- */
-function populateH2H(a) {
+async function populateH2H(a) {
   for (const id of ["h2hA", "h2hB"]) {
     const sel = $(id);
     sel.innerHTML = "";
@@ -1485,8 +1500,8 @@ function populateH2H(a) {
     }
   }
   if (a.driverStats.length >= 2) {
-    $("h2hA").value = String(a.driverStats[0].num);
-    $("h2hB").value = String(a.driverStats[1].num);
+    await setSelectValue($("h2hA"), a.driverStats[0].num);
+    await setSelectValue($("h2hB"), a.driverStats[1].num);
   }
 }
 function ensureGridHost(afterId, gridId) {
