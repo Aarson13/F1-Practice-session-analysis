@@ -1,5 +1,7 @@
 # F1 Session Analyzer — Turn-by-Turn Driver & Team Analysis
 
+**Live:** https://f1-practice-session-analysis.pages.dev
+
 Pick **any year, any Grand Prix, any session** and find out **which driver — and which team — is fastest through each turn/corner**.
 
 Not limited to free practice — works for **every available session type**:
@@ -53,6 +55,11 @@ To save space, this app **stores no F1 data at all** — no CSVs, no databases, 
 3. All processing happens **in your browser**; close the tab and nothing remains.
 
 Deploy anywhere static sites live (GitHub Pages, Netlify, Vercel — no backend needed).
+
+## Deploys (Cloudflare Pages + GitHub auto-builds)
+
+- Production URL: https://f1-practice-session-analysis.pages.dev (deployed with `wrangler pages deploy . --project-name=f1-practice-session-analysis`).
+- **GitHub auto-deploys:** connect the repo once in the Cloudflare dashboard — Workers & Pages → `f1-practice-session-analysis` → Settings → Builds & deployments → **Connect to Git** → authorize GitHub → select `Aarson13/F1-Practice-session-analysis`, production branch `main`, no build command, output directory `/`. Every push to `main` then rebuilds and redeploys automatically.
 
 ## How the analysis works
 
