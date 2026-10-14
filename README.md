@@ -20,14 +20,14 @@ No install, no build, no backend. Just serve the folder and open it in a browser
 **Option A — Python (you already have it):**
 
 ```powershell
-cd C:\Users\Parth\Desktop\Github\F1-Practice-session-analysis
+cd C:\Users\Parth\Desktop\Github\F1-Practice-session-analysis\public
 python -m http.server 8000
 ```
 
 **Option B — Node:**
 
 ```powershell
-cd C:\Users\Parth\Desktop\Github\F1-Practice-session-analysis
+cd C:\Users\Parth\Desktop\Github\F1-Practice-session-analysis\public
 npx serve .
 ```
 
@@ -69,7 +69,7 @@ Results open in tabs (Overview, Track Map, Corners, Head-to-Head, Drivers & Team
 - [Apache ECharts 5.5](https://echarts.apache.org/) — speed traces with tooltips, zoom + legend filtering
 - Custom canvas — track map, duel map, best-lap replay (no library draws F1 track maps)
 
-All component files live in `vendor/` and are served with the site — no third-party CDN is required at runtime (verified with jsDelivr fully blocked). `_headers` disables caching so redeploys can never serve a stale mix of files.
+All component files live in `public/vendor/` and are served with the site — no third-party CDN is required at runtime (verified with jsDelivr fully blocked). `public/_headers` disables caching so redeploys can never serve a stale mix of files.
 
 ## Zero-storage, live-data design
 
@@ -79,12 +79,35 @@ To save space, this app **stores no F1 data at all** — no CSVs, no databases, 
 2. Official corner geometry comes live from the meeting's `circuit_info_url` (MultiViewer).
 3. All processing happens **in your browser**; close the tab and nothing remains.
 
-Deploy anywhere static sites live (GitHub Pages, Netlify, Vercel — no backend needed).
+Deploy anywhere static sites live (point the host at `public/` — no backend needed).
 
 ## Deploys (Cloudflare Pages + GitHub auto-builds)
 
-- Production URL: https://f1-practice-session-analysis.pages.dev (deployed with `wrangler pages deploy . --project-name=f1-practice-session-analysis`).
-- **GitHub auto-deploys:** connect the repo once in the Cloudflare dashboard — Workers & Pages → `f1-practice-session-analysis` → Settings → Builds & deployments → **Connect to Git** → authorize GitHub → select `Aarson13/F1-Practice-session-analysis`, production branch `main`, no build command, output directory `/`. Every push to `main` then rebuilds and redeploys automatically.
+The published site is the **`public/` directory**. Nothing else in the repository
+is part of it: `README.md`, `DESIGN.md` and the git plumbing stay at the root,
+where no deploy reaches them.
+
+A directory rather than an include-list, on purpose. Cloudflare Pages reads no
+ignore file — measured: a probe deployment carrying `.assetsignore` served
+`/secret.txt` *and* `/.assetsignore` itself — so the only thing deciding what a
+Pages build publishes is its **build output directory**. Making that directory the
+site is how the repository states what it publishes, instead of depending on a
+host to honour a file it may not read.
+
+- Production URL: https://f1-practice-session-analysis.pages.dev
+- Manual deploy: `./Misc/pages-deploy.sh f1` (stages `public/` and uploads it), or
+  `npx wrangler pages deploy public --project-name=f1-practice-session-analysis`.
+- **GitHub auto-deploys:** connect the repo once in the Cloudflare dashboard —
+  Workers & Pages → `f1-practice-session-analysis` → Settings → Builds &
+  deployments → **Connect to Git** → authorize GitHub → select
+  `Aarson13/F1-Practice-session-analysis`, production branch `main`, **leave the
+  build command blank** (there is no build step), **build output directory
+  `public`**. Every push to `main` then rebuilds and redeploys automatically.
+
+One consequence of connecting, from Cloudflare's own docs: a Git-integrated
+project cannot be switched back to Direct Upload later. Wrangler deploys keep
+working (turn automatic deployments off if you want them to stop firing), but the
+project's type is a one-way door — so `public/` is settled first, above.
 
 ## How the analysis works
 
