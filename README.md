@@ -87,6 +87,23 @@ The published site is the **`public/` directory**. Nothing else in the repositor
 is part of it: `README.md`, `DESIGN.md` and the git plumbing stay at the root,
 where no deploy reaches them.
 
+**Three of the paths those root files used to occupy are held deliberately.** The
+first deployment of this project uploaded the repository root, so `/README.md`,
+`/DESIGN.md` and `/.assetsignore` were published then. Moving the site into
+`public/` took them out of the deployment — and the host went on serving the old
+copies anyway: measured on 14 Oct 2026, all three answered `200` with their old
+bodies, `CF-Cache-Status: HIT`, `Age` ~42,000s, `Cache-Control: public,
+s-maxage=604800`, while the same paths with any query string answered `404`.
+Pages retains removed assets; a redeploy does not evict them, and there is no
+cache purge to reach for, because the account holds no zone for a `*.pages.dev`
+hostname. So `public/README.md`, `public/DESIGN.md` and `public/.assetsignore`
+exist to hold those three paths and say what they are. A deployment's own file
+takes a path back — measured, the next deploy replaced all three — which means
+the site answers with a statement instead of a document it does not publish.
+`Misc/pages-functions-test.mjs` now asks every site for these clean URLs, which
+is the check that would have caught it: the suite's own `?probe=` requests read
+the deployment and passed while a stranger could still read the file.
+
 A directory rather than an include-list, on purpose. Cloudflare Pages reads no
 ignore file — measured: a probe deployment carrying `.assetsignore` served
 `/secret.txt` *and* `/.assetsignore` itself — so the only thing deciding what a

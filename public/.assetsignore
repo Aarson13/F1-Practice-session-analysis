@@ -1,0 +1,12 @@
+# This path is not part of the site.
+#
+# /.assetsignore is not published by this deployment, and this file exists only
+# to hold the path. The file it used to serve listed the repository files a
+# deploy must not upload, and the project's first Pages deployment — which
+# uploaded the repository root — served it. The site then moved into public/ and
+# that file was deleted; the edge kept serving this copy anyway (measured
+# 14 Oct 2026: 200 with CF-Cache-Status: HIT and Age ~42,000s, while the same
+# path with any query string answered 404). Pages retains removed assets.
+#
+# The rules it held are the publish set itself now — the directory Pages uploads
+# is public/ — and the repository's README says so.
