@@ -1,3 +1,18 @@
-# Always revalidate: the app ships often and filenames are unversioned.
+# No store, not no-cache: the app ships often and filenames are unversioned, so
+# this was always meant to be "revalidate every time" — and `no-cache` did not
+# mean that on this host.
+#
+# Measured after `README.md` and `.assetsignore` stopped being published (the
+# site moved into public/, commit 99eed03): both paths kept answering `200` with
+# their old bodies on the production hostname, `CF-Cache-Status: HIT`,
+# `Cache-Control: public, s-maxage=604800`, and a forced revalidation request
+# (`Cache-Control: no-cache` on the request) returned the same HIT at the same
+# age rather than going to the deployment. So the cost of `no-cache` here is not
+# a revalidation, it is up to seven days of serving a file the deployment no
+# longer has — which is exactly the case an ignore file cannot cover.
+#
+# `no-store` removes that: nothing is stored, so nothing can outlive the
+# deployment that served it. It does not evict entries already in the cache;
+# those expire on their own `s-maxage`.
 /*
-  Cache-Control: no-cache
+  Cache-Control: no-store
