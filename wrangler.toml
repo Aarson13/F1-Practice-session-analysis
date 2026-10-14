@@ -1,0 +1,27 @@
+# The one config this site has: its Cloudflare Pages project.
+#
+#   npx wrangler pages deploy public   → publish public/ to the project
+#   npx wrangler pages dev public      → local test
+#
+# This is the eighth site of the eight in the Netlify → Cloudflare migration, and
+# the one whose Pages project has no Git source yet: the repository belongs to
+# another account (Aarson13) and Cloudflare's GitHub App is not installed for it,
+# so attaching a source answers 401 error 8000011 (see
+# Misc/netlify-to-cloudflare-handoff.md §13). Until that authorization exists the
+# deploy is `Misc/pages-deploy.sh f1`, which reads this file for the project name
+# and uploads the directory named below.
+#
+# `pages_build_output_dir` names `public/` rather than a staging directory, and
+# that is the difference between this repository and the other seven: their
+# publish set is their repository root, so it has to be copied through
+# `tools/deploy-pages.mjs` to keep README, tools/, functions/ and .git* off the
+# host. Here the publish set is already a directory the repository shows — the
+# site moved into `public/` for exactly that reason — and it holds nothing but
+# site files, so there is no staging step and no build command to name.
+#
+# There is no Worker and no bundling. `wrangler deploy` is not a command this
+# repository has any use for: Pages serves the files, and the site is static.
+
+name = "f1-practice-session-analysis"
+pages_build_output_dir = "public"
+compatibility_date = "2026-10-01"

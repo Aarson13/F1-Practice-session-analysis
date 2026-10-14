@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  One entry, because this site is one page: the year, Grand Prix and session
+  selectors are query parameters on it, not addresses of their own, so they are
+  not separate URLs and must not be listed as if they were.
+
+  No <lastmod>: nothing here records when the page last changed, and a guessed
+  date is worse than an absent one.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://f1-practice-session-analysis.pages.dev/</loc>
+  </url>
+</urlset>
