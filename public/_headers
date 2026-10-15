@@ -1,5 +1,7 @@
-# No store, not no-cache: the app ships often and filenames are unversioned, so
-# this was always meant to be "revalidate every time" — and `no-cache` did not
+# CACHING. Read this before adding a file to public/.
+#
+# `no-store`, not `no-cache`: the app ships often and filenames are unversioned,
+# so this was always meant to be "revalidate every time" — and `no-cache` did not
 # mean that on this host.
 #
 # Measured after `README.md` and `.assetsignore` stopped being published (the
@@ -12,7 +14,92 @@
 # longer has — which is exactly the case an ignore file cannot cover.
 #
 # `no-store` removes that: nothing is stored, so nothing can outlive the
-# deployment that served it. It does not evict entries already in the cache;
-# those expire on their own `s-maxage`.
-/*
+# deployment that served it.
+#
+# One thing this file CANNOT do, and it is why the rules below name each path
+# instead of leaning on the catch-all: Cloudflare joins the Cache-Control of
+# every matching rule into one comma-separated value, and a `no-store` in that
+# list wins. A `/*` rule carrying `no-store` therefore cancels every long-cache
+# rule under it — measured locally through `wrangler pages dev`: with `/*` set to
+# no-store, `/assets/bg-poster.jpg` was served
+# `public, max-age=31536000, immutable, no-store`. The immutable rule was dead,
+# and 700 KB of video was re-downloaded by every visitor on every visit. So the
+# catch-all carries the security headers and NO Cache-Control, and each path that
+# needs a cache policy states it here. Same shape as cents' _headers.
+#
+# If you add a file to public/, give it a rule: an unmatched path falls back to
+# the platform's own 7-day cache (s-maxage=604800, measured above), which is the
+# behaviour this section exists to avoid.
+
+# The app itself: unversioned filenames, replaced on every deploy, so nothing may
+# outlive the deployment that served it.
+/
   Cache-Control: no-store
+/index.html
+  Cache-Control: no-store
+/styles.css
+  Cache-Control: no-store
+/app.js
+  Cache-Control: no-store
+/animations.js
+  Cache-Control: no-store
+/robots.txt
+  Cache-Control: no-store
+/sitemap.xml
+  Cache-Control: no-store
+/404.html
+  Cache-Control: no-store
+
+# The vendored libraries (echarts 326 KB, tabulator, the Shoelace chunks) are
+# ~1.5 MB and change a few times a year, not per deploy — the one directory that
+# should not be re-downloaded by every visitor on every visit. Not `immutable`:
+# the filenames carry no content hash, so a replaced library has to be able to
+# reach a returning visitor, and an immutable promise on a stable URL cannot be
+# revoked. A week plus stale-while-revalidate is the compromise the portfolio's
+# font rule already makes.
+/vendor/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# UI: the background video and poster are large, rarely change, and live under
+# /assets/ — they get a long immutable cache. If a video file is ever replaced
+# with different content, rename it (cache-bust) instead of relying on expiry.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# EVERYTHING ELSE: the security headers, and deliberately no Cache-Control (see
+# the note at the top of this file).
+/*
+  # The CSP this site did not have. On 15 Oct 2026 it was the one host in this
+  # collection sending none, while every sibling sent a strict one. The two
+  # inline <script> blocks are pinned by hash — run
+  # `python tools/check_csp_hashes.py` after editing either one, because a
+  # missing hash is a page that renders and quietly half-works.
+  #
+  #   script-src   'self' + those hashes; no CDN at all. The libraries this app
+  #                uses (ECharts, Tabulator, Shoelace) are vendored under
+  #                /vendor/, which is what makes pinning possible.
+  #   style-src    'self' 'unsafe-inline' + fonts.googleapis.com. The inline is
+  #                there because the markup sets nine inline style attributes
+  #                (margins, one max-width, one grid-template-columns) that
+  #                `style-src 'self'` alone would drop; the Google origin is
+  #                there because a <link rel=stylesheet> is a style-src load, not
+  #                a font-src one — without it the font stylesheet is blocked and
+  #                the page falls back to system faces. Tightening the inline half
+  #                means moving those nine attributes into styles.css; until then
+  #                the relaxation is named here rather than left implicit.
+  #   font-src     the fonts are still fetched from Google (self-hosting them is
+  #                the better fix, and the fonts/ directory exists) — allowed for
+  #                now rather than silently, because index.html and styles.css
+  #                are mid-edit in the working tree.
+  #   connect-src  the live session data from api.openf1.org, plus 'self' and
+  #                data:. The data: is not decoration: the vendored components
+  #                fetch their own icons as `data:image/svg+xml,…` URLs, and with
+  #                it out the console filled with "Refused to connect to
+  #                'data:image/svg+xml,…'" and the controls lost their chevrons
+  #                and checkmarks. Measured in the browser, not assumed.
+  #   media-src    the background video and poster are served from here.
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-89facNSh/0DYdZRfEmBETpAd0Ij4FAmOzeWknrboyR0=' 'sha256-GDg6YAsjogeXR+vYQEUnskVJEq1VwCqMeN3NOjlEXlE='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; connect-src 'self' https://api.openf1.org data:; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'
+  # Paired with frame-ancestors 'none' for engines that predate it.
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

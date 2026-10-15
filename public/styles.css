@@ -20,33 +20,38 @@
 
 /* ============================ A. DESIGN TOKENS ============================ */
 :root {
-  /* Ferrari palette (spec) */
-  --ferrari-red: #DC0000;
-  --rosso-glow: #ff2a2a;
+  /* UI: spec palette — red accent, near-black bg, solid-ish cards */
+  --red: #DC0000;
+  --red-glow: #ff2a2a;
   --bg: #0a0a0c;
-  --surface: rgba(20, 20, 24, 0.55);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #f2f2f2;
-  --muted: #9a9aa3;
-  --accent-yellow: #FFF200;
+  --card: rgba(18, 18, 22, 0.72);
+  --border: rgba(255, 255, 255, 0.09);
+  --text: #f3f3f5;
+  --muted: #a0a0aa;
+  --yellow: #FFF200; /* rare accent only */
 
-  /* aliases kept so existing JS-generated markup + legacy rules keep working */
-  --accent: var(--ferrari-red);
-  --accent-hi: var(--rosso-glow);
+  /* legacy aliases — app.js inline styles + older rules use these names,
+     so they stay valid and point at the spec tokens */
+  --ferrari-red: var(--red);
+  --rosso-glow: var(--red-glow);
+  --accent: var(--red);
+  --accent-hi: var(--red-glow);
   --accent-deep: #8a0000;
+  --accent-yellow: var(--yellow);
+  --surface: var(--card);
   --good: #34d17b;
   --warn: #ffb020;
   --faint: #6b7590;
   --line: var(--border);
   --line-soft: rgba(255, 255, 255, 0.05);
-  --card: var(--surface);
 
-  --radius-card: 16px;
+  --radius-card: 14px;
   --radius-ctl: 10px;
   --nav-h: 64px;
 
-  /* Type: Orbitron (numerals) · Rajdhani (headings) · Inter (body) */
-  --font-num: "Orbitron", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  /* UI: Rajdhani 600/700 (headings + numerals) · Inter 400/600 (body).
+     System fallbacks if Google Fonts is blocked. */
+  --font-num: "Rajdhani", "Segoe UI", system-ui, sans-serif;
   --font-d: "Rajdhani", "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   --font-b: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 
@@ -71,31 +76,33 @@
    (e.g. .loader/.back-to-top set display, which would otherwise override the
    UA [hidden] rule and leave an invisible full-screen layer eating clicks). */
 [hidden] { display: none !important; }
+/* UI: page base colour behind the video (spec). */
+html, body { background: #0a0a0c; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
   color: var(--text);
   font-family: var(--font-b);
-  background: var(--bg);
   overflow-x: hidden;
 }
 ::selection { background: var(--ferrari-red); color: #fff; }
 
 /* ============================ B. BACKGROUND ============================ */
-/* PERF: single fixed video, zero CSS filters on it (filters force a repaint
-   of the whole viewport every frame). One static gradient overlay, no blur,
-   no blend modes, no grain/noise layer, no parallax oversizing. */
-.bg-video {
-  position: fixed; inset: 0;
+/* UI: fixed video wrap per spec — no filters, no blur, no blend modes.
+   Content layers (main/header/section/footer/nav) sit at z-index 1 above it.
+   Transparent wrapper backgrounds let the video show through. */
+.bg-video-wrap {
+  position: fixed; inset: 0; z-index: 0;
+  overflow: hidden; pointer-events: none;
+}
+#bgVideo {
+  position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
-  z-index: -2;
-  pointer-events: none;
 }
-/* The overlay guarantees WCAG AA contrast for text over the video. */
-.bg-overlay {
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(180deg, rgba(8, 8, 10, 0.70) 0%, rgba(8, 8, 10, 0.88) 100%);
+.bg-video-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(8, 8, 10, 0.50) 0%, rgba(8, 8, 10, 0.82) 100%);
 }
 
 /* ============================ C. CHROME ============================ */
@@ -109,23 +116,29 @@ body {
   z-index: 60;
 }
 
-/* --- sticky glass navbar --- */
+/* --- sticky navbar: solid, NO blur (spec) --- */
 .navbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 50;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   height: var(--nav-h); padding: 0 22px;
-  background: rgba(10, 10, 12, 0.35);
+  background: rgba(10, 10, 12, 0.92);
   border-bottom: 1px solid transparent;
-  transition: height 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  transition: height 0.2s ease, border-color 0.2s ease;
 }
 .navbar.is-shrunk {
   height: 52px;
-  background: rgba(10, 10, 12, 0.88);
-  /* PERF: blur kept ONLY here, capped at blur(8px) per spec. */
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
   border-bottom-color: var(--border);
 }
+/* UI: mobile menu button — hidden on desktop, 44px touch target. */
+.menu-btn {
+  display: none;
+  min-height: 44px; min-width: 44px; padding: 8px 14px;
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-family: var(--font-d); font-weight: 700; font-size: 14px;
+  letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+}
+.menu-btn:focus-visible { outline: 2px solid var(--red-glow); outline-offset: 2px; }
 .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex: 0 0 auto; }
 .nav-mark { filter: drop-shadow(0 0 8px rgba(220, 0, 0, 0.5)); transition: transform 0.3s ease; }
 .nav-logo:hover .nav-mark { transform: rotate(-6deg) scale(1.06); }
@@ -172,8 +185,12 @@ body {
   animation: heroFade 0.8s ease-out 1;
 }
 @keyframes heroFade { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-/* PERF: static Ferrari-red word. The animated background-clip sweep is gone. */
-.hero-word { color: var(--ferrari-red); }
+/* UI: "ANALYZER" in static red gradient text (background-clip, no animation). */
+.hero-word {
+  background: linear-gradient(100deg, var(--red) 30%, var(--red-glow) 55%, #ff7a5c 70%, var(--red) 90%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
 .hero-sub {
   margin: 6px 0 26px; min-height: 1.6em;
   font-family: var(--font-d); font-size: clamp(1rem, 2.4vw, 1.4rem);
@@ -197,7 +214,7 @@ body {
 }
 .hero-cta .cta-label { display: inline-block; transform: skewX(12deg); }
 .hero-cta:hover { background-color: #f52222; transform: skewX(-12deg) translateY(-1px); }
-.hero-cta:active { transform: skewX(-12deg) translateY(0); }
+.hero-cta:active { transform: skewX(-12deg) scale(0.98); }
 .hero-cta:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 4px; }
 /* ripple injected by animations.js */
 .ripple {
@@ -335,10 +352,10 @@ body {
 /* PERF: custom cursor fully deleted (elements, CSS, listeners). Native cursor
    restored everywhere — no `cursor: none` rule remains in this file. */
 
-/* --- background toggle (bottom-left, unobtrusive) --- */
+/* --- background toggle (bottom-left, unobtrusive, 44px touch target) --- */
 .bg-toggle {
   position: fixed; left: 14px; bottom: 14px; z-index: 45;
-  padding: 7px 12px; border-radius: 8px;
+  min-height: 44px; padding: 10px 14px; border-radius: 8px;
   background: rgba(10, 10, 12, 0.88); color: var(--muted);
   border: 1px solid var(--border);
   font-family: var(--font-b); font-size: 12px; font-weight: 600;
@@ -349,7 +366,8 @@ body {
 .bg-toggle:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
 
 /* ============================ E. LAYOUT / CARDS / CONTROLS ============================ */
-main, .hero, .site-footer { position: relative; z-index: 1; }
+/* UI: content layers sit above the fixed video wrap (spec). */
+main, header, section, footer, nav { position: relative; z-index: 1; }
 main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 70px; }
 
 /* PERF: solid semi-opaque card — backdrop-filter removed from every card
@@ -368,22 +386,19 @@ main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 70px; }
   background: linear-gradient(90deg, var(--ferrari-red), transparent);
   border-radius: var(--radius-card) 0 0 0;
 }
-@media (min-width: 1400px) {
-  .card-wide { margin-left: -90px; margin-right: -90px; }
-}
+/* UI: .card-wide breakout lives in the 1440 breakpoint (section H). */
 .card h2 {
   position: relative; margin: 0 0 14px; padding-bottom: 12px;
   font-family: var(--font-d); font-weight: 700;
   font-size: 22px; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1.05;
   display: flex; align-items: center; gap: 12px;
 }
-/* animated red underline that draws in on scroll */
+/* UI: static 2px red underline, 48px wide (spec — no draw animation). */
 .card h2::after {
-  content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 0;
-  background: linear-gradient(90deg, var(--ferrari-red), rgba(220, 0, 0, 0));
-  border-radius: 2px; transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 48px;
+  background: var(--red);
+  border-radius: 2px;
 }
-.card.is-revealed h2::after { width: 72%; }
 /* the "01"/"02" numerals: large outlined red */
 .tick {
   display: inline-flex; align-items: center; justify-content: center;
@@ -464,7 +479,8 @@ sl-button[variant="default"]:not([disabled])::part(base):hover {
   transform: skewX(-12deg) translateY(-1px);
 }
 sl-button[size="small"]::part(base) { min-height: 32px; font-size: 12px; }
-sl-button::part(base):active { transform: skewX(-12deg) translateY(0); }
+/* UI: press feedback scale(.98) per spec. */
+sl-button::part(base):active { transform: skewX(-12deg) scale(0.98); }
 .controls-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
 .controls-row sl-select { min-width: 110px; }
 label { display: flex; flex-direction: column; gap: 7px; font-size: 11.5px; color: var(--muted);
@@ -534,8 +550,8 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 /* PERF: chip hover is border-color only (no glow shadow). */
 .chip:hover { border-color: rgba(220, 0, 0, 0.4); }
 .chip b { margin-right: 6px; color: var(--text); font-family: var(--font-num); font-weight: 700; }
-.swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.15); }
+/* UI: team/driver colour chips are small SOLID pills — no glow, no JS. */
+.swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px; }
 
 /* --- track maps (CSS polish only; canvas drawing is untouched) --- */
 /* PERF: no filters, no transforms, no scroll listeners on map/chart
@@ -546,7 +562,7 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 }
 .map-wrap canvas { width: 100%; height: auto; display: block; border-radius: 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
-.legend .swatch { box-shadow: 0 0 9px rgba(255, 255, 255, 0.2); }
+.legend .swatch { background: rgba(255, 255, 255, 0.12); }
 
 /* --- Tabulator grids: sticky header, 3% zebra, red hover lift, best-cell glow --- */
 .grid { border: 1px solid var(--border); border-radius: 12px; background: rgba(0, 0, 0, 0.25); }
@@ -599,7 +615,8 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 .pill-unknown { background: transparent; color: var(--faint); }
 
 /* --- ECharts traces --- */
-.chart { height: 400px; background: rgba(8, 8, 12, 0.7); border: 1px solid var(--border);
+/* UI: fixed height + min-height so charts never jump layout (no CLS). */
+.chart { height: 400px; min-height: 400px; background: rgba(8, 8, 12, 0.7); border: 1px solid var(--border);
   border-radius: 12px; padding: 6px; }
 
 /* --- explainer --- */
@@ -607,42 +624,73 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 .how strong { color: var(--text); }
 
 /* ============================ G. REVEAL / SKELETON ============================ */
-/* PERF: one-time fade/translateY reveal per section via IntersectionObserver
-   (JS adds .is-revealed once, then unobserves). No ScrollTrigger, no scrub,
-   no global will-change. Scoped to .js-motion so blocked JS never hides
-   content. Nothing here touches .chart, .map-wrap or canvases. */
+/* UI: ONE IntersectionObserver adds .in once per section (opacity 0→1,
+   translateY 24px→0, 400ms) then unobserves. Scoped to .js-motion so
+   blocked JS never hides content. Never applied to .chart, .map-wrap,
+   canvases — only section cards. */
 .js-motion .reveal { opacity: 0; transform: translateY(24px); }
-.js-motion .reveal.is-revealed { opacity: 1; transform: none; transition: opacity 0.6s ease, transform 0.6s ease; }
+.js-motion .reveal.in { opacity: 1; transform: none; transition: opacity 400ms ease, transform 400ms ease; }
 
-/* skeleton shimmer placeholders while data loads */
+/* UI: skeleton = static grey bars with a SINGLE light opacity pulse
+   (finite — bars sit static if loading runs longer). Loading-only. */
 .skeleton { position: relative; overflow: hidden; }
 .skeleton::after {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.08) 37%, rgba(255, 255, 255, 0.02) 63%);
-  background-size: 400% 100%;
-  animation: shimmerBg 1.4s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.06);
+  animation: skPulse 1.2s ease-in-out 1;
 }
-@keyframes shimmerBg { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@keyframes skPulse { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.35; } }
 
 /* PERF: Vanilla-Tilt removed — the tilt/glare helpers are deleted. */
 
 /* ============================ H. RESPONSIVE + REDUCED MOTION ============================ */
-@media (max-width: 900px) {
-  .nav-links { gap: 0; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .nav-links::-webkit-scrollbar { display: none; }
-  .nav-title { display: none; }
+/* UI: mobile-first breakpoints 480 / 768 / 1024 / 1440. Single column below
+   768px, touch targets >= 44px, no horizontal page scroll at 360px. */
+@media (max-width: 1440px) {
+  .card-wide { margin-left: 0; margin-right: 0; }
 }
-@media (max-width: 720px) {
+@media (min-width: 1440px) {
+  .card-wide { margin-left: -90px; margin-right: -90px; }
+}
+@media (max-width: 1024px) {
+  main { max-width: 100%; }
+  .hero-title { font-size: clamp(2rem, 6vw, 4.5rem); }
+}
+@media (max-width: 768px) {
   main { padding: 18px 12px 50px; }
-  .card { padding: 17px 15px; }
+  .card { padding: 20px 15px; }
   .card h2 { font-size: 19px; gap: 8px; }
   .tick { font-size: 32px; min-width: 44px; }
-  .brand h1 { font-size: 20px; }
-  .chart { height: 300px; }
+  .chart { height: 300px; min-height: 300px; }
   .circuit-photo { height: 76px; }
+  .circuit-hero { flex-direction: column; align-items: flex-start; }
   #resultTabs::part(nav) { top: calc(var(--nav-h) + 4px); }
   .navbar { padding: 0 14px; }
   .grid .tabulator-header { top: 52px; }
+  .controls-grid { grid-template-columns: 1fr; }
+  /* UI: nav links collapse behind the Menu button; open panel is a
+     vertical 44px-target list. */
+  .menu-btn { display: inline-flex; align-items: center; }
+  .nav-links {
+    display: none;
+    position: absolute; top: var(--nav-h); left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 0;
+    background: rgba(10, 10, 12, 0.98);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px 12px; max-height: 70vh; overflow-y: auto;
+  }
+  .navbar.nav-open .nav-links { display: flex; }
+  .nav-link { padding: 12px 14px; min-height: 44px; display: flex; align-items: center; }
+  .footer-top { display: inline-block; padding: 12px 4px; min-height: 44px; }
+  .back-to-top { right: 14px; bottom: 70px; }
+  .toast-host { left: 12px; right: 12px; align-items: stretch; }
+  .toast { max-width: none; }
+}
+@media (max-width: 480px) {
+  .hero { padding-left: 14px; padding-right: 14px; }
+  .hero-cta { padding: 14px 22px; font-size: 0.95rem; }
+  .controls-row { gap: 8px; }
+  .card-head { flex-direction: column; align-items: flex-start; }
 }
 
 /* PERF: reduced motion — no video, no hero fade, instant reveals.

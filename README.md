@@ -69,7 +69,7 @@ Results open in tabs (Overview, Track Map, Corners, Head-to-Head, Drivers & Team
 - [Apache ECharts 5.5](https://echarts.apache.org/) — speed traces with tooltips, zoom + legend filtering
 - Custom canvas — track map, duel map, best-lap replay (no library draws F1 track maps)
 
-All component files live in `public/vendor/` and are served with the site — no third-party CDN is required at runtime (verified with jsDelivr fully blocked). `public/_headers` disables caching so redeploys can never serve a stale mix of files.
+All component files live in `public/vendor/` and are served with the site — no third-party CDN is required at runtime (verified with jsDelivr fully blocked). `public/_headers` sends `no-store` for the app's own files (unversioned names, replaced on every deploy, so a redeploy can never serve a stale mix) and a week's cache for `public/vendor/` and `public/assets/`, which are large and change a few times a year rather than per deploy. Each path states its own policy: Cloudflare joins the `Cache-Control` of every matching rule, so a catch-all carrying `no-store` silently cancels the long-cache rules underneath it — which is what an earlier version of this file did.
 
 ## Light UI layer (Ferrari theme, performance pass)
 
@@ -83,29 +83,38 @@ plus one `IntersectionObserver` do the rest.
 
 What was cut for speed: the custom cursor, the particle canvas, 3D tilt,
 smooth-scroll hijacking, the film-grain layer, `backdrop-filter` on every
-card/section/tab/toast/loader (blur stays only on the navbar, capped at
-`blur(8px)`), glow `box-shadow` transitions, global `will-change`, parallax
-and scrub animations, and all infinite ambient animations. Cards use a solid
-`rgba(18,18,22,.88)`; button hover is color + `translateY(-1px)` in 150ms;
-sections fade in once via `IntersectionObserver` and are then unobserved.
-Charts, track-map and duel-map containers are never animated, transformed,
-filtered or scroll-listened.
+surface (the navbar is solid, no blur at all), glow `box-shadow` transitions,
+global `will-change`, parallax and scrub animations, and all infinite ambient
+animations. Cards use a solid `rgba(18,18,22,.72)`; button hover is color +
+`translateY(-1px)` in 150ms; sections fade in once via `IntersectionObserver`
+and are then unobserved. Charts, track-map and duel-map containers are never
+animated, transformed, filtered or scroll-listened.
 
-Fonts (Google Fonts): **Orbitron** (numerals), **Rajdhani** (headings), **Inter** (body).
+Fonts (Google Fonts): **Rajdhani 600/700** (headings, numerals) + **Inter
+400/600** (body), `display=swap`, system fallbacks.
 
-Accessibility & performance: `prefers-reduced-motion: reduce` kills the video
-and all animation and shows static content. The video is skipped (poster only)
-when **any** of these is true: viewport < 768px, Save-Data, 2g/3g,
-reduced-motion, or ≤ 4 CPU cores. It starts loading only after window `load` +
-1s (`preload="none"`), pauses while Analyze runs and when the tab hides, and a
-bottom-left toggle (`Background: On/Off`, JS variable only) hides it on demand.
+Accessibility & performance: `prefers-reduced-motion: reduce` shows the poster
+only and disables all non-essential animation. The video autoplays muted
+(`preload="auto"`, in parallel, never blocking content), pauses while Analyze
+runs and when the tab hides, and a bottom-left toggle (`Background: On/Off`,
+JS variable only, 44px target) hides it on demand. No width/connection/CPU
+gating — it plays on mobile too.
 
 ### Background video (self-hosted, swap freely)
 
 `public/assets/bg.webm` · `public/assets/bg.mp4` · `public/assets/bg-poster.jpg`.
 Spec: **854×480 (480p), 24 fps, 8–12 s seamless loop, no audio, ≤ 3 MB each**
 (hard cap 5 MB; Pages caps a single file at 25 MiB). The WebM is listed first;
-MP4 is the fallback. Current shipped weight: ~73 KB + ~25 KB + ~6 KB poster.
+MP4 is the fallback. Current shipped weight: 182,458 B + 493,938 B + 14,507 B poster.
+
+The clip is **procedurally generated — no external footage, no branding**: a
+generic dark-red/black open-wheel car on a night track, rendered by
+`tools/make_bg_video.py` (numpy + Pillow → ffmpeg; 240 loop-safe frames at
+1280×720, then scaled to 854×480). Tweak speed, colours and duration via the
+constants at the top of that script (`DURATION`, `FPS`, `SPEED`,
+`ACCENT_COLOR`, `CAR_COLOR`), then re-run it — it re-encodes both formats,
+re-grabs the poster, verifies the 3 MB budget (auto-bumping CRF if needed),
+deletes the temp frames, and prints the final sizes.
 
 Compression commands from the performance spec (replace `input.mp4` with your clip):
 
@@ -118,10 +127,6 @@ ffmpeg -i input.mp4 -an -t 10 -vf "scale=854:-2,fps=24" -c:v libvpx-vp9 -crf 40 
 (`bg.webm`, `bg.mp4`, `bg-poster.jpg`) — no code changes needed. To use
 different filenames, edit the `<source>`/`poster` attributes on the `#bgVideo`
 element in `public/index.html`.
-
-> The repo currently ships a small **placeholder** clip (an abstract dark
-> Ferrari-red loop) plus its poster, so the site works out-of-the-box.
-> Replace all three files with your footage whenever you're ready.
 
 ## Zero-storage, live-data design
 
@@ -178,6 +183,36 @@ project cannot be switched back to Direct Upload later. Wrangler deploys keep
 working (turn automatic deployments off if you want them to stop firing), but the
 project's type is a one-way door — so `public/` is settled first, above.
 
+### Before you deploy
+
+The deploy has no build step and no checks of its own, and this site's two silent
+failure modes both show up only in a browser, so run these first — all three are
+what `.github/workflows/check.yml` runs on a push:
+
+```
+python tools/check_csp_hashes.py     # the CSP pins both inline scripts by hash
+node --check public/app.js && node --check public/animations.js
+```
+
+`public/_headers` carries a Content-Security-Policy, and `script-src` pins the two
+inline `<script>` blocks in `public/index.html` by SHA-256. Edit either block and
+the hash must be regenerated: the browser refuses a script whose hash is not in
+the policy, which looks like a page that renders but has lost a piece of its
+behaviour, not like an error. The checker prints the exact directives to paste
+and also fails on a hash left behind by a deleted script.
+
+The policy's `connect-src` also carries `data:` for a reason worth keeping: the
+vendored Shoelace components fetch their own icons as `data:image/svg+xml,…` URLs,
+and without it the console fills with refusals and the selects lose their chevrons
+and checkmarks.
+
+One thing still open on this site, deliberately: the fonts are fetched from
+`fonts.googleapis.com` / `fonts.gstatic.com`, and `style-src`/`font-src` allow
+those two origins. Self-hosting them (`public/fonts/`) is the better fix and the
+only one that lets those origins leave the policy; it is not done here because
+`public/index.html` and `public/styles.css` carry in-progress work in the working
+tree, and editing a file mid-change is how two authors end up fighting.
+
 ## How the analysis works
 
 1. **Best lap per driver** — fastest non-pit-out lap of the selected session.
@@ -192,7 +227,7 @@ One click runs a lite analysis (top 5 drivers per session) of **every session of
 
 ## Hardened against real-world failures
 
-- Request pacing + automatic retry on rate limits (`429`), server errors (`5xx`), bad responses, and timeouts (30 s per request).
+- Request pacing + automatic retry on rate limits (`429`), server errors (`5xx`), bad responses, and timeouts (30 s per request). Concurrent requests are serialized through a shared pace gate (a `Promise.all` burst used to fire 6-wide and trip the limiter); `429`s back off exponentially with jitter, honor the server's `Retry-After`, and set a shared cooldown so later requests wait out the window instead of re-tripping it.
 - Friendly messages for: no Grands Prix in a year, no/cancelled sessions, sessions with no timed laps yet, drivers with missing telemetry (skipped, analysis continues with the rest).
 - UI locks during analysis so selections can't change mid-run; minimum 2 drivers with telemetry required or it tells you to retry.
 - Works with any Grand Prix 2023 → present (OpenF1 coverage).

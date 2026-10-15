@@ -19,22 +19,23 @@
  * No third-party scripts remain; this local file is deferred.
  *
  * What this file still does (all cheap):
- *   1. environment + video gating helpers
- *   2. lightweight background video (load after paint, pause when busy)
- *   3. one-time section reveals via IntersectionObserver
+ *   1. environment helpers (reduced-motion only — no width/connection/CPU gating)
+ *   2. background video autoplay + pause hooks (tab hidden, Analyze, toggle)
+ *   3. one-time section reveals via IntersectionObserver (adds .in, unobserves)
  *   4. one passive rAF-throttled scroll handler (progress bar, navbar, top)
- *   5. tab-aware anchor links (native smooth scroll)
+ *   5. mobile menu button + tab-aware anchor links (native smooth scroll)
  *   6. loader + skeleton + toasts hooked to existing app state
- *   7. click ripple + team-colour chip glow (static, once per render)
+ *   7. click ripple (one-shot, rare)
  * ===================================================================== */
 (function () {
   "use strict";
 
-  /* -------------------- 1. environment + gating -------------------- */
+  /* -------------------- 1. environment -------------------- */
+  /* UI: the ONLY motion gate is prefers-reduced-motion. No width, connection,
+     saveData or CPU gating — the video always shows (poster-only fallback
+     under reduced motion). */
   var reduced = false;
   try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
-  var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || {};
-  var saveData = !!connection.saveData;
   var motionOK = !reduced;
   var navEl = document.getElementById("navbar");
   var navH = 64;
@@ -55,32 +56,24 @@
   var bgUserOn = true;
   var analyzing = false;
 
+  /* UI: video shows unless reduced-motion (or the user toggles it off).
+     No width/connection/CPU gating. */
   function videoAllowed() {
-    if (!bgUserOn || reduced) return false;
-    if (window.innerWidth < 768) return false;
-    if (saveData) return false;
-    /* PERF: skip the video on slow networks and weak CPUs entirely. */
-    var et = "";
-    try { et = connection.effectiveType || ""; } catch (e) {}
-    if (et === "slow-2g" || et === "2g" || et === "3g") return false;
-    var cores = 0;
-    try { cores = navigator.hardwareConcurrency || 0; } catch (e) {}
-    if (cores && cores <= 4) return false;
-    return true;
+    return bgUserOn && !reduced;
   }
 
-  /* -------------------- 2. lightweight background video -------------------- */
+  /* -------------------- 2. background video -------------------- */
   function setupVideo() {
     var v = document.getElementById("bgVideo");
 
-    /* PERF: gated-out devices get the poster image only (or the solid dark
-       background), and the <video> element is dropped so nothing downloads. */
-    if (!videoAllowed()) {
+    /* UI: reduced motion → poster image only; drop the wrap so the 480p
+       files never download. */
+    if (reduced) {
       document.body.style.backgroundImage = "url('assets/bg-poster.jpg')";
       document.body.style.backgroundSize = "cover";
       document.body.style.backgroundPosition = "center";
-      document.body.style.backgroundAttachment = "fixed";
-      if (v) v.remove();
+      var wrap = document.querySelector(".bg-video-wrap");
+      if (wrap) wrap.remove();
       return;
     }
     if (!v) return;
@@ -99,17 +92,21 @@
       } catch (e) {}
     }
 
-    /* PERF: preload="none" in markup + start loading only after window
-       'load' + 1s, so the video never blocks first paint or API calls. */
-    function kickOff() {
-      if (!videoAllowed()) return;
-      try { v.load(); } catch (e) {}
-      tryPlay();
-    }
-    if (document.readyState === "complete") setTimeout(kickOff, 1000);
-    else { on(window, "load", function () { setTimeout(kickOff, 1000); }); }
+    /* UI: muted autoplay handshake — belt, braces, and a first-gesture retry. */
+    try { v.muted = true; v.defaultMuted = true; v.playsInline = true; } catch (e) {}
+    tryPlay();
+    on(v, "canplay", tryPlay);
+    function gesture() { tryPlay(); }
+    ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function (ev) {
+      on(window, ev, gesture, { passive: true, once: true });
+    });
+    /* UI: bad file → hide the video, poster/background shows through. */
+    on(v, "error", function () {
+      try { v.style.display = "none"; } catch (e) {}
+      if (window.console && console.warn) console.warn("Background video failed to load; showing poster.");
+    });
 
-    /* PERF: pause when the tab is hidden (cheap visibility hook). */
+    /* UI: pause when the tab is hidden (cheap visibility hook). */
     on(document, "visibilitychange", function () {
       if (document.hidden) { try { v.pause(); } catch (e) {} }
       else tryPlay();
@@ -118,8 +115,9 @@
     if (toggle) on(toggle, "click", function () {
       bgUserOn = !bgUserOn;
       paintToggle();
-      if (!bgUserOn) { try { v.pause(); } catch (e) {} v.style.display = "none"; }
-      else { v.style.display = ""; tryPlay(); }
+      var w = document.querySelector(".bg-video-wrap");
+      if (!bgUserOn) { try { v.pause(); } catch (e) {} if (w) w.style.display = "none"; }
+      else { if (w) w.style.display = ""; tryPlay(); }
     });
     paintToggle();
 
@@ -141,21 +139,20 @@
   }
 
   /* -------------------- 3. one-time section reveals -------------------- */
-  /* PERF: a single IntersectionObserver, once per section, then unobserve.
-     No ScrollTrigger, no scrub, no per-frame work. Map/chart containers
-     (.map-wrap, .chart, canvas) are never animated — only the section
-     cards fade/translate via the .is-revealed class. */
+  /* UI: ONE IntersectionObserver adds .in once per section (400ms
+     opacity/translateY in CSS) then unobserves. Map/chart containers
+     (.map-wrap, .chart, canvas) are never animated — only section cards. */
   function initReveals() {
     var els = document.querySelectorAll(".reveal");
     if (!els.length) return;
     if (!motionOK || !("IntersectionObserver" in window)) {
-      els.forEach(function (el) { el.classList.add("is-revealed"); });
+      els.forEach(function (el) { el.classList.add("in"); });
       return;
     }
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
         if (!en.isIntersecting) return;
-        en.target.classList.add("is-revealed");
+        en.target.classList.add("in");
         io.unobserve(en.target);
       });
     }, { root: null, rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
@@ -270,7 +267,7 @@
     setTimeout(function () {
       t.classList.remove("is-in"); t.classList.add("is-out");
       setTimeout(function () { t.remove(); }, 400);
-    }, 2800);
+    }, 2500);
   }
 
   function setLoader(on) {
@@ -385,44 +382,40 @@
     document.querySelectorAll(".hero-cta, .btn-race").forEach(function (el) { on(el, "click", addRipple); });
   }
 
-  /* soft glow on team-colour swatches wherever drivers/teams are listed
-     (static inline style, applied once per render — no animation) */
-  function glowSwatches(root) {
-    (root || document).querySelectorAll(".swatch").forEach(function (s) {
-      if (s.dataset.glow === "1") return;
-      s.dataset.glow = "1";
-      try {
-        var c = getComputedStyle(s).backgroundColor;
-        if (c && c !== "transparent" && c !== "rgba(0, 0, 0, 0)") s.style.boxShadow = "0 0 9px 0 " + c;
-      } catch (e) {}
-    });
+  /* UI: team/driver colour chips are plain solid pills in CSS (no glow,
+     no JS) — this hook is intentionally a no-op keeper for structure. */
+  function setupTabIntegration() {
+    /* Nothing needed: reveals are IO-driven and survive tab switches. */
   }
 
-  function setupTabIntegration() {
-    var tg = document.getElementById("resultTabs");
-    if (!tg) return;
-    /* PERF: on tab switch just refresh the static chip glow. No
-       ScrollTrigger.refresh, no reveal re-init (the IO handles it). */
-    on(tg, "sl-tab-show", function () { glowSwatches(tg); });
-    var results = document.getElementById("results");
-    if (results) {
-      new MutationObserver(function () {
-        if (!results.hidden) glowSwatches(results);
-      }).observe(results, { attributes: true, attributeFilter: ["hidden"] });
-    }
+  /* UI: mobile menu button — toggles .nav-open on the navbar (~8 lines). */
+  function setupMenu() {
+    var btn = document.getElementById("menuBtn");
+    if (!btn || !navEl) return;
+    on(btn, "click", function () {
+      var open = navEl.classList.toggle("nav-open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    on(navEl, "click", function (e) {
+      var a = e.target.closest ? e.target.closest(".nav-link") : null;
+      if (a && navEl.classList.contains("nav-open")) {
+        navEl.classList.remove("nav-open");
+        btn.setAttribute("aria-expanded", "false");
+      }
+    });
   }
 
   /* -------------------- boot -------------------- */
   function boot() {
     setupVideo();
     setupScrollChrome();
+    setupMenu();
     setupAnchors();
     setupStateHooks();
     setupRipple();
 
     initReveals();
     setupTabIntegration();
-    glowSwatches(document);
 
     /* tables/charts often overflow on phones — keep them scrollable in place */
     document.querySelectorAll(".grid, .chart").forEach(function (el) {

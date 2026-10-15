@@ -31,10 +31,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* ---------------- throttled fetch with timeout + retry ---------------- */
 let lastReqAt = 0;
 const REQUEST_TIMEOUT_MS = 30000;
+// PERF: serialize concurrent apiGet callers through a promise chain, so a
+// Promise.all burst (e.g. fetchOverview's 6 requests) goes out spaced apart
+// instead of all at once every ~700ms and tripping the API rate limit.
+// rateLimitUntil is a shared cooldown set after any HTTP 429.
+let paceChain = Promise.resolve();
+let rateLimitUntil = 0;
 async function pace() {
-  const wait = REQUEST_SPACING_MS - (Date.now() - lastReqAt);
-  if (wait > 0) await sleep(wait);
-  lastReqAt = Date.now();
+  const run = paceChain.then(async () => {
+    const now = Date.now();
+    const wait = Math.max(REQUEST_SPACING_MS - (now - lastReqAt), rateLimitUntil - now, 0);
+    if (wait > 0) await sleep(wait);
+    lastReqAt = Date.now();
+  });
+  paceChain = run.catch(() => {});
+  await run;
+}
+// PERF: honor the server's Retry-After header (seconds or HTTP date) when present.
+function parseRetryAfterMs(res) {
+  try {
+    const v = res.headers && res.headers.get ? res.headers.get("retry-after") : null;
+    if (v == null || v === "") return 0;
+    const secs = Number(v);
+    if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+    const at = Date.parse(v);
+    if (Number.isFinite(at)) return Math.max(0, at - Date.now());
+  } catch { /* ignore — fall back to computed backoff */ }
+  return 0;
 }
 async function apiGet(url, label) {
   let lastError = null;
@@ -45,13 +68,19 @@ async function apiGet(url, label) {
     try {
       const res = await fetch(url, { signal: ctrl.signal });
       if (res.status === 429) {
-        setStatus(`Rate-limited by the API — waiting 15s before retry (attempt ${attempt}/5)…`);
-        await sleep(15000);
+        // PERF: exponential backoff with jitter (honoring Retry-After) instead
+        // of a fixed 15s, plus a shared cooldown so later requests also wait
+        // out the limit window instead of re-tripping it in lockstep.
+        const backoff = Math.max(parseRetryAfterMs(res), 10000 * 2 ** (attempt - 1))
+          + Math.floor(Math.random() * 5000);
+        rateLimitUntil = Date.now() + backoff;
+        setStatus(`Rate-limited by the API — waiting ${Math.round(backoff / 1000)}s before retry (attempt ${attempt}/5)…`);
+        await sleep(backoff);
         continue;
       }
       if (res.status >= 500 && res.status < 600) {
         lastError = new Error(`API error loading ${label}: HTTP ${res.status}`);
-        await sleep(2000 * attempt); // transient server error — retry
+        await sleep(2000 * attempt + Math.floor(Math.random() * 1000)); // transient server error — retry
         continue;
       }
       if (!res.ok) throw new Error(`API error loading ${label}: HTTP ${res.status}`);
@@ -77,7 +106,8 @@ async function apiGet(url, label) {
       }
       if (attempt === 5) break;
       setStatus(`Retrying ${label} (attempt ${attempt + 1}/5)…`);
-      await sleep(2000 * attempt);
+      // PERF: jitter so concurrent retry chains don't re-fire in lockstep.
+      await sleep(2000 * attempt + Math.floor(Math.random() * 1000));
     } finally {
       clearTimeout(timer);
     }
