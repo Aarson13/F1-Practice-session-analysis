@@ -28,7 +28,6 @@
   --radius-ctl: 10px;
   --font-d: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   --font-b: "Barlow", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   /* Shoelace theme bridge — dark-ramp reds */
   --sl-color-primary-50: #2b0603;
   --sl-color-primary-100: #430a05;

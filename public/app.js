@@ -26,7 +26,6 @@ const MIN_TELEMETRY_POINTS = 50;
 const REQUEST_SPACING_MS = 700; // stay under OpenF1 free-tier rate limits
 
 const $ = (id) => document.getElementById(id);
-const $$ = (sel) => document.querySelector(sel); // for CSS selectors (e.g. "#resultGrid p")
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------------- throttled fetch with timeout + retry ---------------- */
@@ -94,10 +93,6 @@ function fmtLap(sec) {
   const s = (sec - m * 60).toFixed(3).padStart(6, "0");
   return `${m}:${s}`;
 }
-function fmtGap(g) {
-  if (g == null || !isFinite(g)) return "";
-  return g === 0 ? " — " : `+${g.toFixed(3)}`;
-}
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -157,11 +152,6 @@ async function setSelectValue(sel, value, tries = 3) {
 function selectValues(sel) {
   const opts = sel.querySelectorAll ? [...sel.querySelectorAll("sl-option")] : [...(sel.options || [])];
   return opts.map((o) => (o.getAttribute ? o.getAttribute("value") ?? o.value : o.value));
-}
-function setSelectOptions(sel, items, placeholder) {
-  sel.innerHTML = "";
-  if (placeholder) sel.appendChild(mkOption("", placeholder));
-  for (const [value, text] of items) sel.appendChild(mkOption(value, text));
 }
 function selectOptionCount(sel) {
   return sel.querySelectorAll ? sel.querySelectorAll("sl-option").length : (sel.options || []).length;
