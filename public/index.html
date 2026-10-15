@@ -16,9 +16,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
 
-<!-- ===================== Splitting.js base CSS (char/word wrappers) ===================== -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/splitting@1.0.6/dist/splitting.css" />
-
+<!-- PERF: removed Splitting.js CSS (hero title reveal is now a single CSS
+     fade-in; no per-letter JS splitting, no extra request). -->
 <!-- ===================== existing self-hosted UI libraries ===================== -->
 <link rel="stylesheet" href="vendor/shoelace/themes/dark.css" />
 <link rel="stylesheet" href="vendor/tabulator.min.css" />
@@ -45,23 +44,28 @@
      3px Ferrari-red bar pinned to the very top; width tracks page progress. -->
 <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
 
-<!-- ===================== CINEMATIC VIDEO BACKGROUND =====================
-     position:fixed; inset:0; z-index:-2 (video) and -1 (overlay/grain) so it
-     sits behind all page content. The clip is self-hosted in public/assets/.
-     Replace it with any dark motorsport footage — see README (ffmpeg commands).
-     Compression target: 1280x720, 24-30fps, no audio, <= 8 MB. -->
+<!-- ===================== LIGHTWEIGHT BACKGROUND VIDEO =====================
+     PERF: single fixed <video> (z-index:-2) + one static gradient div
+     (z-index:-1). No blur, no filters, no blend modes, no grain layer.
+     preload="none" so it never blocks first paint or the OpenF1 API calls;
+     animations.js starts loading it after window 'load' + 1s, and only when
+     the device/network allows (see gating there).
+     Spec: dark cinematic motorsport clip, 854x480 (480p), 24fps, 8-12s
+     seamless loop, no audio, target <= 3 MB each (hard cap 5 MB).
+     ffmpeg (replace input.mp4 with your clip):
+       ffmpeg -i input.mp4 -an -t 10 -vf "scale=854:-2,fps=24" -c:v libx264 -crf 30 -preset slow -movflags +faststart assets/bg.mp4
+       ffmpeg -i input.mp4 -an -t 10 -vf "scale=854:-2,fps=24" -c:v libvpx-vp9 -crf 40 -b:v 0 assets/bg.webm -->
 <video
   id="bgVideo"
   class="bg-video"
-  autoplay muted loop playsinline
-  preload="metadata"
-  poster="assets/hero-poster.jpg"
+  muted loop playsinline disablepictureinpicture
+  preload="none"
+  poster="assets/bg-poster.jpg"
   aria-hidden="true" tabindex="-1">
   <source src="assets/bg.webm" type="video/webm" />
   <source src="assets/bg.mp4" type="video/mp4" />
 </video>
 <div class="bg-overlay" aria-hidden="true"></div>
-<div class="bg-grain" aria-hidden="true"></div>
 
 <!-- ===================== STICKY GLASS NAVBAR ===================== -->
 <nav class="navbar" id="navbar" aria-label="Primary">
@@ -92,7 +96,8 @@
 
 <!-- ===================== HERO (new, above section 01) ===================== -->
 <header class="hero" id="hero">
-  <div class="hero-particles" id="heroParticles" aria-hidden="true"></div>
+  <!-- PERF: removed the tsParticles ember layer (a full canvas repainting at
+       60fps behind the hero). Hero keeps a single CSS fade-in on load. -->
   <div class="hero-inner">
     <div class="hero-mark" aria-hidden="true">
       <svg viewBox="0 0 120 120" width="104" height="104" focusable="false">
@@ -111,8 +116,10 @@
         <path d="M30 100 L90 84" stroke="#ff2a2a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
       </svg>
     </div>
-    <h1 class="hero-title" id="heroTitle" data-splitting>F1 Session <span class="hero-word" id="heroWord">Analyzer</span></h1>
-    <p class="hero-sub" id="heroSubtitle" aria-label="Turn-by-turn corner analysis"></p>
+    <h1 class="hero-title" id="heroTitle">F1 SESSION <span class="hero-word" id="heroWord">ANALYZER</span></h1>
+    <!-- PERF: static subtitle text. The rotating Typed.js subtitle was a
+         non-essential always-on JS effect; one line, zero JS. -->
+    <p class="hero-sub" id="heroSubtitle">Turn-by-turn corner analysis · Live OpenF1 data · Every session. Every corner.</p>
     <a class="hero-cta" id="startAnalysing" href="#controlsCard" data-scroll="#controlsCard"><span class="cta-label">Start analysing&nbsp;<span aria-hidden="true">↓</span></span></a>
   </div>
   <div class="speed-lines" aria-hidden="true"></div>
@@ -307,7 +314,9 @@
   </div>
 </footer>
 
-<!-- ===================== FLOATING UI: back-to-top · toasts · loader · cursor ===================== -->
+<!-- ===================== FLOATING UI: back-to-top · toasts · loader · bg toggle =====================
+     PERF: custom cursor DOT+RING elements deleted entirely (HTML, CSS, JS).
+     Native browser cursor restored everywhere. -->
 <button id="backToTop" class="back-to-top" aria-label="Back to top" hidden>
   <svg viewBox="0 0 44 44" width="44" height="44" aria-hidden="true" focusable="false">
     <circle class="btt-track" cx="22" cy="22" r="19" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="3"/>
@@ -328,8 +337,9 @@
   </div>
 </div>
 
-<div class="cursor-dot" id="cursorDot" aria-hidden="true"></div>
-<div class="cursor-ring" id="cursorRing" aria-hidden="true"></div>
+<!-- PERF: lightweight background toggle. Pauses/hides the video; the choice
+     lives in a JS variable only (no localStorage). -->
+<button id="bgToggle" class="bg-toggle" type="button" aria-pressed="true">Background: On</button>
 
 <!-- ===================== existing self-hosted libraries + app ===================== -->
 <script src="vendor/tabulator.min.js"></script>
@@ -363,17 +373,12 @@ window.addEventListener("DOMContentLoaded", function () {
 </script>
 <script src="app.js"></script>
 
-<!-- ===================== CINEMATIC MOTION (CDN, pinned, free & open source) =====================
-     Loaded with defer so first paint is never blocked; animations.js runs last and
-     lazy-inits on DOMContentLoaded. If a CDN is blocked the page still works. -->
-<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/vanilla-tilt@1.8.1/dist/vanilla-tilt.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/countup.js@2.8.0/dist/countUp.umd.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/splitting@1.0.6/dist/splitting.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/typed.js@2.1.0/dist/typed.umd.js"></script>
+<!-- ===================== LIGHT UI LAYER (local, deferred) =====================
+     PERF: removed ALL third-party motion libraries — GSAP, ScrollTrigger,
+     Lenis, Vanilla-Tilt, CountUp.js, tsParticles, Splitting.js, Typed.js.
+     GSAP was only used for the removed effects, so it is gone entirely.
+     Native scrolling + IntersectionObserver + tiny vanilla JS do the rest.
+     Remaining script is local, deferred, and loads nothing unused. -->
 <script defer src="animations.js"></script>
 </body>
 </html>

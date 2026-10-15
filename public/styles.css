@@ -1,19 +1,20 @@
 /* =====================================================================
- * F1 Session Analyzer — CINEMATIC FERRARI-INSPIRED THEME
+ * F1 Session Analyzer — FERRARI THEME, PERFORMANCE PASS (PERF)
  * ---------------------------------------------------------------------
- * UI-only restyle. Every element ID / class the data + analysis JavaScript
- * depends on is preserved verbatim (grids, tabs, chips, map-wrap, tick,
- * best-cell, pill*, flash, circuit-*, controls-*, etc.). Nothing here
- * touches fetching, analysis, chart/map rendering, CSV or share links.
+ * UI-only. Every element ID / class the data + analysis JavaScript depends
+ * on is preserved verbatim (grids, tabs, chips, map-wrap, tick, best-cell,
+ * pill*, flash, circuit-*, controls-*, etc.). Nothing here touches
+ * fetching, analysis, chart/map rendering, CSV or share links.
+ * Every removed or downgraded block is marked "PERF:".
  *
  * Blocks, top to bottom:
  *   A. Design tokens (:root)
- *   B. Base + background (video / overlay / grain)
+ *   B. Base + background (lightweight video + static overlay)
  *   C. Scroll progress + navbar + hero + dividers + footer
- *   D. Floating UI (back-to-top · toasts · loader · cursor)
- *   E. Layout + glass cards + headings + buttons + inputs
+ *   D. Floating UI (back-to-top · toasts · loader · bg toggle)
+ *   E. Layout + solid cards + headings + buttons + inputs
  *   F. Tabs · status · summary · maps · Tabulator grids · charts · explainer
- *   G. Scroll-reveal + skeleton + tilt helpers
+ *   G. One-time reveal + loading skeleton
  *   H. Responsive + reduced-motion
  * ===================================================================== */
 
@@ -81,44 +82,31 @@ body {
 ::selection { background: var(--ferrari-red); color: #fff; }
 
 /* ============================ B. BACKGROUND ============================ */
+/* PERF: single fixed video, zero CSS filters on it (filters force a repaint
+   of the whole viewport every frame). One static gradient overlay, no blur,
+   no blend modes, no grain/noise layer, no parallax oversizing. */
 .bg-video {
   position: fixed; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
   z-index: -2;
-  filter: saturate(115%) contrast(108%) brightness(78%);
   pointer-events: none;
 }
-/* The overlay guarantees WCAG AA contrast for text over the video.
-   Oversized vertically so the 0.3× parallax drift never exposes an edge. */
+/* The overlay guarantees WCAG AA contrast for text over the video. */
 .bg-overlay {
-  position: fixed; left: 0; right: 0; top: -25%; height: 150%; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(220, 0, 0, 0.10), transparent 55%),
-    linear-gradient(180deg, rgba(10, 10, 12, 0.55) 0%, rgba(10, 10, 12, 0.85) 60%, #0a0a0c 100%);
-}
-/* very faint film-grain layer (~4% opacity), pure CSS/SVG — no image request */
-.bg-grain {
-  position: fixed; inset: -50%; z-index: -1; pointer-events: none;
-  opacity: 0.04; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: grain 6s steps(6) infinite;
-}
-@keyframes grain {
-  0%, 100% { transform: translate(0, 0); }
-  20% { transform: translate(-4%, 3%); }
-  40% { transform: translate(3%, -4%); }
-  60% { transform: translate(-3%, -3%); }
-  80% { transform: translate(4%, 2%); }
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, rgba(8, 8, 10, 0.70) 0%, rgba(8, 8, 10, 0.88) 100%);
 }
 
 /* ============================ C. CHROME ============================ */
 /* --- scroll progress bar --- */
+/* PERF: progress via transform: scaleX (compositor-only, no layout) instead
+   of width, and no box-shadow (shadow would repaint every scroll frame). */
 .scroll-progress {
-  position: fixed; top: 0; left: 0; height: 3px; width: 0;
-  background: linear-gradient(90deg, var(--ferrari-red), var(--rosso-glow));
-  box-shadow: 0 0 12px rgba(220, 0, 0, 0.7);
-  z-index: 60; will-change: width;
+  position: fixed; top: 0; left: 0; height: 3px; width: 100%;
+  background: var(--ferrari-red);
+  transform: scaleX(0); transform-origin: 0 50%;
+  z-index: 60;
 }
 
 /* --- sticky glass navbar --- */
@@ -128,16 +116,15 @@ body {
   height: var(--nav-h); padding: 0 22px;
   background: rgba(10, 10, 12, 0.35);
   border-bottom: 1px solid transparent;
-  transition: height 0.3s ease, background 0.3s ease, backdrop-filter 0.3s ease,
-              border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: height 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 .navbar.is-shrunk {
   height: 52px;
-  background: rgba(10, 10, 12, 0.72);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  backdrop-filter: blur(16px) saturate(140%);
+  background: rgba(10, 10, 12, 0.88);
+  /* PERF: blur kept ONLY here, capped at blur(8px) per spec. */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-bottom-color: var(--border);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5), 0 0 30px rgba(220, 0, 0, 0.06);
 }
 .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex: 0 0 auto; }
 .nav-mark { filter: drop-shadow(0 0 8px rgba(220, 0, 0, 0.5)); transition: transform 0.3s ease; }
@@ -173,35 +160,25 @@ body {
   overflow: hidden;
 }
 .hero-inner { position: relative; z-index: 2; max-width: 900px; }
-.hero-mark { display: inline-block; margin-bottom: 6px; animation: heroFloat 6s ease-in-out infinite; }
-@keyframes heroFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+/* PERF: no floating animation on the hero mark (was a 6s infinite transform
+   repainting the hero). */
+.hero-mark { display: inline-block; margin-bottom: 6px; }
+/* PERF: hero title fades in ONCE on load (CSS only, single run). No
+   per-letter JS splitting, no infinite gradient sweep. */
 .hero-title {
   margin: 8px 0 6px; font-family: var(--font-d); font-weight: 700;
   font-size: clamp(2.4rem, 7vw, 5rem); letter-spacing: 0.03em; line-height: 1.02;
   text-transform: uppercase; text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+  animation: heroFade 0.8s ease-out 1;
 }
-.hero-title .char { display: inline-block; will-change: transform, opacity; }
-/* the word "Analyzer" gets a red shimmer sweep.
-   When Splitting.js is active each letter is its own inline-block, so the
-   gradient must live on the .char itself; Splitting's --char-index staggers the
-   animation left→right so it still reads as one sweep across the word.
-   (The plain .hero-word rule covers the un-split / reduced-motion fallback.) */
-.hero-word,
-.hero-word .char {
-  background: linear-gradient(100deg, var(--ferrari-red) 0%, #fff 45%, var(--rosso-glow) 58%, var(--ferrari-red) 100%);
-  background-size: 250% 100%;
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-  animation: shimmer 3.4s ease-in-out infinite;
-}
-.hero-word .char { animation-delay: calc(var(--char-index, 0) * 0.05s); }
-@keyframes shimmer { 0% { background-position: 160% 0; } 100% { background-position: -60% 0; } }
+@keyframes heroFade { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+/* PERF: static Ferrari-red word. The animated background-clip sweep is gone. */
+.hero-word { color: var(--ferrari-red); }
 .hero-sub {
   margin: 6px 0 26px; min-height: 1.6em;
   font-family: var(--font-d); font-size: clamp(1rem, 2.4vw, 1.4rem);
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
 }
-.hero-sub .typed-cursor { color: var(--ferrari-red); }
 
 /* skewed racing-stripe CTA: shape is skewed, the label is counter-skewed upright.
    It is also the ripple host (see .ripple below). */
@@ -214,18 +191,14 @@ body {
   font-family: var(--font-d); font-weight: 700; font-size: 1.05rem;
   letter-spacing: 0.14em; text-transform: uppercase;
   transform: skewX(-12deg); transform-origin: center;
-  box-shadow: 0 12px 34px rgba(220, 0, 0, 0.4), 0 0 0 1px rgba(220, 0, 0, 0.3) inset;
-  transition: filter 0.25s ease, box-shadow 0.25s ease, transform 0.12s ease;
-  animation: ctaPulse 2.6s ease-in-out infinite;
+  /* PERF: hover is color + translateY(-1px) only, 150ms. The infinite glow
+     pulse and its large box-shadow are gone. */
+  transition: background-color 150ms ease, transform 150ms ease;
 }
 .hero-cta .cta-label { display: inline-block; transform: skewX(12deg); }
-.hero-cta:hover { filter: brightness(1.1); box-shadow: 0 16px 44px rgba(220, 0, 0, 0.55); }
-.hero-cta:active { transform: skewX(-12deg) scale(0.97); }
+.hero-cta:hover { background-color: #f52222; transform: skewX(-12deg) translateY(-1px); }
+.hero-cta:active { transform: skewX(-12deg) translateY(0); }
 .hero-cta:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 4px; }
-@keyframes ctaPulse {
-  0%, 100% { box-shadow: 0 12px 34px rgba(220, 0, 0, 0.35), 0 0 0 1px rgba(220, 0, 0, 0.3) inset; }
-  50% { box-shadow: 0 12px 40px rgba(220, 0, 0, 0.6), 0 0 26px rgba(255, 42, 42, 0.4), 0 0 0 1px rgba(220, 0, 0, 0.4) inset; }
-}
 /* ripple injected by animations.js */
 .ripple {
   position: absolute; border-radius: 50%; transform: scale(0);
@@ -234,7 +207,8 @@ body {
 }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 
-/* animated speed-lines strip at the bottom of the hero */
+/* PERF: speed-lines strip is now static (the 0.9s infinite background-position
+   animation repainted a full-width hero layer every frame). */
 .speed-lines {
   position: absolute; left: 0; right: 0; bottom: 56px; height: 56px; z-index: 1;
   background-image: repeating-linear-gradient(90deg,
@@ -245,12 +219,10 @@ body {
     transparent 73px, transparent 120px);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-  animation: speedline 0.9s linear infinite;
   opacity: 0.5;
 }
-@keyframes speedline { from { background-position: 0 0; } to { background-position: -120px 0; } }
 
-/* scroll-indicator mouse with bouncing dot */
+/* scroll-indicator mouse (static dot — the bounce animation is gone) */
 .mouse-scroll {
   position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
   width: 24px; height: 40px; border: 2px solid rgba(255, 255, 255, 0.4);
@@ -259,32 +231,22 @@ body {
 .mouse-dot {
   position: absolute; left: 50%; top: 7px; width: 4px; height: 8px; margin-left: -2px;
   background: var(--ferrari-red); border-radius: 2px;
-  animation: mouseDot 1.6s ease-in-out infinite;
 }
-@keyframes mouseDot { 0% { transform: translateY(0); opacity: 1; } 70% { transform: translateY(14px); opacity: 0; } 100% { opacity: 0; } }
-.hero-particles { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 
-/* --- section divider: red glowing line with a travelling highlight --- */
+/* --- section divider: PERF static line (the travelling blurred highlight
+   animation is gone) --- */
 .divider {
-  position: relative; height: 1px; max-width: 1120px; margin: 26px auto;
+  height: 1px; max-width: 1120px; margin: 26px auto;
   background: linear-gradient(90deg, transparent, rgba(220, 0, 0, 0.6), transparent);
-  overflow: hidden;
 }
-.divider::after {
-  content: ""; position: absolute; top: -1px; left: -30%; width: 30%; height: 3px;
-  background: linear-gradient(90deg, transparent, var(--rosso-glow), transparent);
-  filter: blur(1px); animation: dividerRun 3.4s ease-in-out infinite;
-}
-@keyframes dividerRun { 0% { left: -30%; } 60%, 100% { left: 100%; } }
 
 /* --- footer --- */
 .site-footer {
   position: relative; z-index: 1;
   margin-top: 40px; padding: 22px 20px;
   border-top: 1px solid var(--border);
-  background: rgba(10, 10, 12, 0.6);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  /* PERF: solid footer, backdrop blur removed. */
+  background: rgba(10, 10, 12, 0.92);
 }
 .footer-inner {
   max-width: 1120px; margin: 0 auto; display: flex; flex-wrap: wrap;
@@ -329,11 +291,10 @@ body {
 .toast {
   display: flex; align-items: center; gap: 10px;
   min-width: 220px; max-width: 340px; padding: 12px 15px;
-  background: rgba(20, 20, 24, 0.86); -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  /* PERF: solid toast, blur removed. Slide-in is event-driven and rare. */
+  background: rgba(20, 20, 24, 0.97);
   border: 1px solid var(--border); border-left: 3px solid var(--ferrari-red);
   border-radius: 12px; color: var(--text); font-size: 13.5px; font-weight: 600;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 26px rgba(220, 0, 0, 0.14);
   transform: translateX(120%); opacity: 0;
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
   pointer-events: auto;
@@ -346,7 +307,8 @@ body {
 .loader {
   position: fixed; inset: 0; z-index: 80;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(10, 10, 12, 0.62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  /* PERF: plain dim layer, backdrop blur removed (it covered the viewport). */
+  background: rgba(10, 10, 12, 0.72);
   opacity: 0; transition: opacity 0.25s ease;
 }
 .loader.is-on { opacity: 1; }
@@ -370,41 +332,37 @@ body {
 .loader-label { font-family: var(--font-d); letter-spacing: 0.16em; text-transform: uppercase;
   color: var(--muted); font-size: 13px; }
 
-/* --- custom cursor (desktop, fine pointer only) --- */
-.cursor-dot, .cursor-ring {
-  position: fixed; top: 0; left: 0; z-index: 90; pointer-events: none;
-  border-radius: 50%; opacity: 0; transition: opacity 0.2s ease;
+/* PERF: custom cursor fully deleted (elements, CSS, listeners). Native cursor
+   restored everywhere — no `cursor: none` rule remains in this file. */
+
+/* --- background toggle (bottom-left, unobtrusive) --- */
+.bg-toggle {
+  position: fixed; left: 14px; bottom: 14px; z-index: 45;
+  padding: 7px 12px; border-radius: 8px;
+  background: rgba(10, 10, 12, 0.88); color: var(--muted);
+  border: 1px solid var(--border);
+  font-family: var(--font-b); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.04em; cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
 }
-.cursor-dot { width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; background: var(--ferrari-red);
-  box-shadow: 0 0 10px var(--ferrari-red); }
-.cursor-ring { width: 34px; height: 34px; margin: -17px 0 0 -17px;
-  border: 1.5px solid rgba(220, 0, 0, 0.7);
-  transition: opacity 0.2s ease, width 0.2s ease, height 0.2s ease, margin 0.2s ease, background 0.2s ease; }
-.cursor-ring.is-hot { width: 52px; height: 52px; margin: -26px 0 0 -26px;
-  background: rgba(220, 0, 0, 0.12); border-color: var(--rosso-glow); }
-html.cursor-on body, html.cursor-on a, html.cursor-on button,
-html.cursor-on sl-button, html.cursor-on sl-select { cursor: none; }
-html.cursor-on .cursor-dot, html.cursor-on .cursor-ring { opacity: 1; }
+.bg-toggle:hover { color: var(--text); border-color: rgba(220, 0, 0, 0.5); }
+.bg-toggle:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
 
 /* ============================ E. LAYOUT / CARDS / CONTROLS ============================ */
 main, .hero, .site-footer { position: relative; z-index: 1; }
 main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 70px; }
 
-/* glassmorphism card for every section */
+/* PERF: solid semi-opaque card — backdrop-filter removed from every card
+   (a full-screen blur layer repainted on every scroll frame). Hover keeps a
+   cheap border-color change only; the red glow box-shadow transition is gone. */
 .card {
   position: relative;
-  background: var(--surface);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  background: rgba(18, 18, 22, 0.88);
   border: 1px solid var(--border); border-radius: var(--radius-card);
   padding: 22px 24px; margin-bottom: 18px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  transition: box-shadow 0.35s ease, border-color 0.35s ease;
+  transition: border-color 150ms ease;
 }
-.card:hover {
-  border-color: rgba(220, 0, 0, 0.4);
-  box-shadow: 0 0 40px rgba(220, 0, 0, 0.18), 0 12px 34px rgba(0, 0, 0, 0.4);
-}
+.card:hover { border-color: rgba(220, 0, 0, 0.4); }
 .card::before {
   content: ""; position: absolute; top: 0; left: 0; width: 56px; height: 3px;
   background: linear-gradient(90deg, var(--ferrari-red), transparent);
@@ -480,32 +438,33 @@ sl-option[aria-selected="true"]::part(base) { background-color: rgba(220, 0, 0, 
 sl-option[aria-selected="true"]::part(checked-icon) { color: var(--accent-hi); }
 sl-option[aria-disabled="true"]::part(base) { color: var(--faint); }
 
-/* buttons: Ferrari gradient, skewed stripe, glow, press, (ripple on .hero-cta) */
+/* buttons: Ferrari gradient, skewed stripe.
+   PERF: hover is color change + translateY(-1px) in 150ms — the glow
+   box-shadow transitions are gone (shadows on interactive parts repaint). */
 sl-button::part(base) {
   border-radius: 6px; font-weight: 800; min-height: 46px;
   font-family: var(--font-d); letter-spacing: 0.06em; text-transform: uppercase;
   transform: skewX(-12deg);
-  transition: filter 0.2s ease, box-shadow 0.25s ease, transform 0.12s ease;
+  transition: background-color 150ms ease, transform 150ms ease, border-color 150ms ease;
 }
 sl-button::part(label) { transform: skewX(12deg); display: inline-block; }
 sl-button[variant="primary"]::part(base) {
   background: linear-gradient(180deg, #ff2a2a, var(--ferrari-red) 55%, #8a0000);
   border-color: rgba(255, 255, 255, 0.14); color: #fff;
-  box-shadow: 0 8px 24px rgba(220, 0, 0, 0.3);
 }
 sl-button[variant="primary"]:not([disabled])::part(base):hover {
-  filter: brightness(1.12);
-  box-shadow: 0 10px 30px rgba(220, 0, 0, 0.5), 0 0 22px rgba(255, 42, 42, 0.35);
+  background-color: #f52222;
+  transform: skewX(-12deg) translateY(-1px);
 }
 sl-button[variant="default"]::part(base) {
   background: rgba(255, 255, 255, 0.04); border-color: var(--border); color: var(--text);
 }
 sl-button[variant="default"]:not([disabled])::part(base):hover {
-  border-color: rgba(220, 0, 0, 0.6); background: rgba(220, 0, 0, 0.08);
-  box-shadow: 0 0 22px rgba(220, 0, 0, 0.2);
+  border-color: rgba(220, 0, 0, 0.6); background: rgba(220, 0, 0, 0.12);
+  transform: skewX(-12deg) translateY(-1px);
 }
 sl-button[size="small"]::part(base) { min-height: 32px; font-size: 12px; }
-sl-button::part(base):active { transform: skewX(-12deg) scale(0.97); }
+sl-button::part(base):active { transform: skewX(-12deg) translateY(0); }
 .controls-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
 .controls-row sl-select { min-width: 110px; }
 label { display: flex; flex-direction: column; gap: 7px; font-size: 11.5px; color: var(--muted);
@@ -523,8 +482,8 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 /* --- tabs --- */
 #resultTabs::part(nav) {
   position: sticky; top: calc(var(--nav-h) + 6px); z-index: 15;
-  background: rgba(10, 10, 12, 0.7);
-  -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+  /* PERF: solid sticky tab bar — the blur repainted on every scroll frame. */
+  background: rgba(10, 10, 12, 0.94);
   border: 1px solid var(--border); border-radius: 12px;
   padding: 4px 6px; margin-bottom: 16px;
 }
@@ -570,21 +529,22 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
   border: 1px solid var(--border); background: rgba(255, 255, 255, 0.03);
   border-radius: 999px; padding: 8px 14px; font-size: 12.5px;
   display: inline-flex; align-items: center; gap: 2px;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: border-color 150ms ease;
 }
-.chip:hover { border-color: rgba(220, 0, 0, 0.4); box-shadow: 0 0 18px rgba(220, 0, 0, 0.16); }
+/* PERF: chip hover is border-color only (no glow shadow). */
+.chip:hover { border-color: rgba(220, 0, 0, 0.4); }
 .chip b { margin-right: 6px; color: var(--text); font-family: var(--font-num); font-weight: 700; }
 .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px;
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.15); }
 
 /* --- track maps (CSS polish only; canvas drawing is untouched) --- */
+/* PERF: no filters, no transforms, no scroll listeners on map/chart
+   containers — animating them forces constant repaints of the canvases. */
 .map-wrap {
   position: relative;
-  background: rgba(8, 8, 12, 0.7); border: 1px solid var(--border); border-radius: 12px; padding: 10px;
-  box-shadow: inset 0 0 40px rgba(220, 0, 0, 0.05);
+  background: rgba(8, 8, 12, 0.9); border: 1px solid var(--border); border-radius: 12px; padding: 10px;
 }
-.map-wrap canvas { width: 100%; height: auto; display: block; border-radius: 6px;
-  filter: drop-shadow(0 0 6px rgba(220, 0, 0, 0.28)); }
+.map-wrap canvas { width: 100%; height: auto; display: block; border-radius: 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
 .legend .swatch { box-shadow: 0 0 9px rgba(255, 255, 255, 0.2); }
 
@@ -596,8 +556,8 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 .grid.tabulator .tabulator-tableholder .tabulator-table { background: transparent; }
 .grid .tabulator-header {
   position: sticky; top: var(--nav-h); z-index: 6;
-  background: rgba(12, 12, 18, 0.96);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  /* PERF: solid sticky header, blur removed. */
+  background: rgba(12, 12, 18, 1);
   border-bottom: 1px solid var(--border);
   border-radius: 12px 12px 0 0;
 }
@@ -606,13 +566,14 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
   text-transform: uppercase; letter-spacing: 0.09em; }
 .grid .tabulator-col[aria-sort="ascending"] .tabulator-col-title::after { content: " ▲"; color: var(--rosso-glow); }
 .grid .tabulator-col[aria-sort="descending"] .tabulator-col-title::after { content: " ▼"; color: var(--rosso-glow); }
+/* PERF: row hover is a flat background tint + left red edge (paint only).
+   No translateY lift, no drop shadow — the grid can hold hundreds of rows. */
 .grid .tabulator-row { background: transparent; border-bottom: 1px solid var(--line-soft); color: var(--text);
-  transition: background 0.15s ease, transform 0.15s ease; }
+  transition: background-color 150ms ease; }
 .grid .tabulator-row.tabulator-row-even { background: rgba(255, 255, 255, 0.03); }
 .grid .tabulator-row:hover {
   background: rgba(220, 0, 0, 0.08) !important;
-  box-shadow: inset 3px 0 0 var(--ferrari-red), 0 4px 14px rgba(0, 0, 0, 0.35);
-  transform: translateY(-1px);
+  box-shadow: inset 3px 0 0 var(--ferrari-red);
 }
 .grid .tabulator-row .tabulator-cell { color: var(--text); font-variant-numeric: tabular-nums; }
 .grid .tabulator-cell.flash { animation: rowflash 2s; }
@@ -645,11 +606,13 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 .how p { color: var(--muted); font-size: 13.5px; line-height: 1.65; margin: 0 0 10px; max-width: 85ch; }
 .how strong { color: var(--text); }
 
-/* ============================ G. MOTION / SKELETON / TILT ============================ */
-/* Scroll-reveal initial states are scoped to .js-motion so that if JS/CDN is
-   blocked the content is fully visible (no permanently-hidden sections). */
-.js-motion .reveal { opacity: 0; transform: translateY(40px); will-change: transform, opacity; }
-.js-motion .reveal.is-revealed { opacity: 1; transform: none; }
+/* ============================ G. REVEAL / SKELETON ============================ */
+/* PERF: one-time fade/translateY reveal per section via IntersectionObserver
+   (JS adds .is-revealed once, then unobserves). No ScrollTrigger, no scrub,
+   no global will-change. Scoped to .js-motion so blocked JS never hides
+   content. Nothing here touches .chart, .map-wrap or canvases. */
+.js-motion .reveal { opacity: 0; transform: translateY(24px); }
+.js-motion .reveal.is-revealed { opacity: 1; transform: none; transition: opacity 0.6s ease, transform 0.6s ease; }
 
 /* skeleton shimmer placeholders while data loads */
 .skeleton { position: relative; overflow: hidden; }
@@ -661,9 +624,7 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 }
 @keyframes shimmerBg { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 
-/* Vanilla-Tilt glare needs the container to be positioned */
-.card.js-tilt { transform-style: preserve-3d; }
-.js-tilt-glare { border-radius: var(--radius-card); }
+/* PERF: Vanilla-Tilt removed — the tilt/glare helpers are deleted. */
 
 /* ============================ H. RESPONSIVE + REDUCED MOTION ============================ */
 @media (max-width: 900px) {
@@ -684,15 +645,14 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
   .grid .tabulator-header { top: 52px; }
 }
 
-/* reduced motion: no video, no parallax/particles/tilt/scroll animation */
+/* PERF: reduced motion — no video, no hero fade, instant reveals.
+   (The video element itself is removed by JS under prefers-reduced-motion;
+   this display rule is a belt-and-braces fallback.) */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
   .bg-video { display: none !important; }
-  .bg-grain { animation: none; }
-  .speed-lines, .divider::after { animation: none; }
-  .hero-particles { display: none !important; }
+  .hero-title { animation: none; }
   .js-motion .reveal { opacity: 1 !important; transform: none !important; }
   .card h2::after { width: 72%; }
-  .cursor-dot, .cursor-ring { display: none !important; }
 }

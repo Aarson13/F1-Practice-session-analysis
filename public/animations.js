@@ -1,42 +1,46 @@
 /* =====================================================================
- * F1 Session Analyzer — CINEMATIC MOTION LAYER  (animations.js)
+ * F1 Session Analyzer — LIGHT UI LAYER  (animations.js)
  * ---------------------------------------------------------------------
- * UI-ONLY. This file never touches data fetching, analysis, chart/map
- * rendering, element IDs, JS-used class names, CSV export or share links.
- * It only adds presentation: scroll reveals, the hero, the video backdrop,
- * navbar/scroll chrome, toasts, the loader, the custom cursor and small
- * hooks onto the EXISTING buttons (added as extra listeners — the app's
- * own handlers are left untouched).
+ * PERF rewrite. UI-ONLY: this file never touches data fetching (OpenF1),
+ * analysis logic, chart/track-map rendering, element IDs, JS-used class
+ * names, CSV export or share links. It only adds presentation on top of
+ * the app's own state (extra listeners/observers — app handlers untouched).
  *
- * Every library is optional and feature-detected: if a CDN is blocked the
- * page still renders and behaves, just without that one effect.
+ * Removed outright (see git history for the old motion build):
+ *   PERF: custom cursor (dot/ring, mousemove + rAF loop) — deleted.
+ *   PERF: tsParticles ember canvas — deleted.
+ *   PERF: Vanilla-Tilt 3D tilt — deleted.
+ *   PERF: Lenis smooth-scroll — deleted; native scroll-behavior: smooth.
+ *   PERF: GSAP + ScrollTrigger (only used by the removed effects) — deleted.
+ *   PERF: CountUp.js KPI animation — deleted; final numbers render as-is.
+ *   PERF: Splitting.js letter reveal + Typed.js subtitle — deleted; the hero
+ *         title uses one CSS fade-in and the subtitle is static text.
+ *   PERF: scroll-linked parallax / scrub animations — deleted.
+ * No third-party scripts remain; this local file is deferred.
  *
- * Blocks:
- *   1. environment + helpers
- *   2. background video
- *   3. Lenis + GSAP/ScrollTrigger boot
- *   4. hero (Splitting / Typed / tsParticles / parallax)
- *   5. scroll reveals + heading underline + count-up KPIs
- *   6. chrome (navbar · progress · back-to-top · dividers)
- *   7. smooth-scroll anchors (nav + hero CTA, tab-aware)
- *   8. loaders + skeletons + toasts (hooked to existing app state)
- *   9. custom cursor + ripple + team-colour chip glow
+ * What this file still does (all cheap):
+ *   1. environment + video gating helpers
+ *   2. lightweight background video (load after paint, pause when busy)
+ *   3. one-time section reveals via IntersectionObserver
+ *   4. one passive rAF-throttled scroll handler (progress bar, navbar, top)
+ *   5. tab-aware anchor links (native smooth scroll)
+ *   6. loader + skeleton + toasts hooked to existing app state
+ *   7. click ripple + team-colour chip glow (static, once per render)
  * ===================================================================== */
 (function () {
   "use strict";
 
-  /* -------------------- 1. environment + helpers -------------------- */
+  /* -------------------- 1. environment + gating -------------------- */
   var reduced = false;
   try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
   var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || {};
   var saveData = !!connection.saveData;
-  var finePointer = false;
-  try { finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches; } catch (e) {}
-  var hasGsap = !!(window.gsap && window.ScrollTrigger);
+  var motionOK = !reduced;
   var navEl = document.getElementById("navbar");
   var navH = 64;
 
-  function raf(fn) {
+  /* PERF: rAF throttle shared by the single scroll/resize handler below. */
+  function rafThrottle(fn) {
     var queued = false, lastArgs = null;
     return function () {
       lastArgs = arguments;
@@ -46,20 +50,33 @@
     };
   }
   function on(el, ev, fn, opt) { if (el) el.addEventListener(ev, fn, opt); }
-  function prefersNoMotion() { return reduced; }
 
-  /* Motion is allowed only when the user hasn't asked to reduce it. */
-  var motionOK = !reduced;
+  /* PERF: user toggle lives in a JS variable only (no localStorage). */
+  var bgUserOn = true;
+  var analyzing = false;
 
-  /* -------------------- 2. background video -------------------- */
+  function videoAllowed() {
+    if (!bgUserOn || reduced) return false;
+    if (window.innerWidth < 768) return false;
+    if (saveData) return false;
+    /* PERF: skip the video on slow networks and weak CPUs entirely. */
+    var et = "";
+    try { et = connection.effectiveType || ""; } catch (e) {}
+    if (et === "slow-2g" || et === "2g" || et === "3g") return false;
+    var cores = 0;
+    try { cores = navigator.hardwareConcurrency || 0; } catch (e) {}
+    if (cores && cores <= 4) return false;
+    return true;
+  }
+
+  /* -------------------- 2. lightweight background video -------------------- */
   function setupVideo() {
     var v = document.getElementById("bgVideo");
-    var minWidth = 640;
-    var skip = saveData || window.innerWidth < minWidth || reduced;
 
-    if (skip) {
-      /* show the poster image only, then drop the <video> (spec) */
-      document.body.style.backgroundImage = "url('assets/hero-poster.jpg')";
+    /* PERF: gated-out devices get the poster image only (or the solid dark
+       background), and the <video> element is dropped so nothing downloads. */
+    if (!videoAllowed()) {
+      document.body.style.backgroundImage = "url('assets/bg-poster.jpg')";
       document.body.style.backgroundSize = "cover";
       document.body.style.backgroundPosition = "center";
       document.body.style.backgroundAttachment = "fixed";
@@ -67,193 +84,100 @@
       return;
     }
     if (!v) return;
-    try { v.muted = true; } catch (e) {}
-    var p = v.play();
-    if (p && p.catch) p.catch(function () { /* autoplay blocked → poster stays */ });
-    on(document, "visibilitychange", function () {
-      if (document.hidden) { try { v.pause(); } catch (e) {} }
-      else { var pp = v.play(); if (pp && pp.catch) pp.catch(function () {}); }
-    });
-  }
+    var toggle = document.getElementById("bgToggle");
 
-  /* -------------------- 3. Lenis + ScrollTrigger boot -------------------- */
-  var lenis = null;
-  function setupSmoothScroll() {
-    if (!motionOK || typeof window.Lenis === "undefined" || !hasGsap) return;
-    try {
-      lenis = new window.Lenis({
-        duration: 1.1,
-        smoothWheel: true,
-        wheelMultiplier: 1,
-        touchMultiplier: 1.6
-      });
-      lenis.on("scroll", window.ScrollTrigger.update);
-      window.gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
-      window.gsap.ticker.lagSmoothing(0);
-      document.documentElement.classList.add("lenis-active");
-    } catch (e) { lenis = null; }
-  }
-  function scrollToEl(el) {
-    if (!el) return;
-    if (lenis) { lenis.scrollTo(el, { offset: -navH - 12, duration: 1.1 }); return; }
-    el.scrollIntoView({ behavior: motionOK ? "smooth" : "auto", block: "start" });
-  }
-
-  /* -------------------- 4. hero -------------------- */
-  function setupHero() {
-    var title = document.getElementById("heroTitle");
-    var chars = [];
-
-    /* letter-by-letter reveal (Splitting.js + GSAP) */
-    if (title) {
-      if (motionOK && typeof window.Splitting !== "undefined" && hasGsap) {
-        try {
-          var res = window.Splitting({ target: title, by: "chars" });
-          chars = (res && res[0] && res[0].chars) || [];
-        } catch (e) {}
-      }
-      if (chars.length && hasGsap) {
-        window.gsap.set(title, { opacity: 1 });
-        window.gsap.from(chars, {
-          opacity: 0, y: 34, rotateX: -60, duration: 0.7, ease: "power3.out",
-          stagger: 0.028, delay: 0.15, transformOrigin: "50% 100%"
-        });
-      }
+    function paintToggle() {
+      if (!toggle) return;
+      toggle.textContent = bgUserOn ? "Background: On" : "Background: Off";
+      toggle.setAttribute("aria-pressed", bgUserOn ? "true" : "false");
     }
-
-    /* rotating subtitle (Typed.js) — static single line if unavailable/reduced */
-    var sub = document.getElementById("heroSubtitle");
-    if (sub) {
-      var lines = ["Turn-by-turn corner analysis", "Live OpenF1 data", "Every session. Every corner."];
-      if (motionOK && typeof window.Typed !== "undefined") {
-        try {
-          new window.Typed("#heroSubtitle", {
-            strings: lines, typeSpeed: 42, backSpeed: 24, backDelay: 1600,
-            loop: true, smartBackspace: true, showCursor: true
-          });
-        } catch (e) { sub.textContent = lines[0]; }
-      } else {
-        sub.textContent = lines[0];
-      }
-    }
-
-    /* embers / sparks in the hero only; disabled below 768px (spec) */
-    var host = document.getElementById("heroParticles");
-    if (host && motionOK && window.innerWidth >= 768 && window.tsParticles) {
+    function tryPlay() {
+      if (!videoAllowed() || analyzing || document.hidden) return;
       try {
-        window.tsParticles.load("heroParticles", {
-          fullScreen: { enable: false },
-          detectRetina: true,
-          fpsLimit: 60,
-          particles: {
-            number: { value: 30 },
-            color: { value: ["#dc0000", "#ff2a2a", "#ff7a45"] },
-            opacity: { value: 0.4 },
-            size: { value: { min: 1, max: 3 } },
-            move: { enable: true, speed: 0.7, direction: "top", outModes: { default: "out" } },
-            life: { duration: { sync: false, value: 8 }, count: 1 }
-          },
-          interactivity: { events: { onHover: { enable: false }, onClick: { enable: false }, resize: true } }
-        });
+        var p = v.play();
+        if (p && p.catch) p.catch(function () { /* autoplay blocked → poster stays */ });
       } catch (e) {}
     }
-  }
 
-  function setupParallax() {
-    if (!motionOK || !hasGsap) return;
-    var overlay = document.querySelector(".bg-overlay");
-    if (!overlay) return;
-    /* overlay drifts at 0.3× scroll speed (hero parallax) */
-    window.gsap.to(overlay, {
-      yPercent: 18, ease: "none",
-      scrollTrigger: { trigger: document.documentElement, start: "top top", end: "bottom bottom", scrub: true }
-    });
-  }
-
-  /* -------------------- 5. reveals + count-up -------------------- */
-  function revealInstant(el) {
-    el.classList.add("is-revealed");
-    if (hasGsap) window.gsap.set(el, { opacity: 1, y: 0 });
-    else { el.style.opacity = "1"; el.style.transform = "none"; }
-  }
-  function initReveal(el) {
-    if (el.dataset.revealInit === "1") return;
-    el.dataset.revealInit = "1";
-    if (!motionOK || !hasGsap) { revealInstant(el); return; }
-    try {
-      var kids = Array.prototype.filter.call(el.children, function (c) {
-        return !c.classList.contains("card-head") || true;
-      });
-      window.gsap.to(el, {
-        opacity: 1, y: 0, duration: 0.7, ease: "power2.out",
-        scrollTrigger: { trigger: el, start: "top 88%", once: true },
-        onStart: function () { el.classList.add("is-revealed"); }
-      });
-      if (kids.length) {
-        window.gsap.from(kids, {
-          opacity: 0, y: 24, duration: 0.55, ease: "power2.out", stagger: 0.08,
-          scrollTrigger: { trigger: el, start: "top 88%", once: true }
-        });
-      }
-    } catch (e) { revealInstant(el); }
-  }
-  function initReveals(root) {
-    (root || document).querySelectorAll(".reveal").forEach(initReveal);
-  }
-
-  var countUpDone = false;
-  function animateCountsIn(root) {
-    if (!root || countUpDone) return;
-    countUpDone = true;
-    if (!motionOK || !(window.countUp && window.countUp.CountUp)) return;
-    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
-    var nodes = [], n;
-    while ((n = walker.nextNode())) {
-      if (/\d/.test(n.nodeValue) && n.nodeValue.indexOf(":") === -1 && n.nodeValue.length < 40) nodes.push(n);
+    /* PERF: preload="none" in markup + start loading only after window
+       'load' + 1s, so the video never blocks first paint or API calls. */
+    function kickOff() {
+      if (!videoAllowed()) return;
+      try { v.load(); } catch (e) {}
+      tryPlay();
     }
-    nodes.forEach(function (node) {
-      var text = node.nodeValue;
-      var m = text.match(/-?\d[\d,]*(?:\.\d+)?/);
-      if (!m) return;
-      var token = m[0];
-      var numStr = token.replace(/,/g, "");
-      var num = parseFloat(numStr);
-      if (!isFinite(num)) return;
-      var decimals = (numStr.split(".")[1] || "").length;
-      var prefix = text.slice(0, m.index), suffix = text.slice(m.index + token.length);
-      var span = document.createElement("span");
-      span.textContent = token;
-      var after = document.createTextNode(suffix);
-      node.nodeValue = prefix;
-      node.parentNode.insertBefore(span, node.nextSibling);
-      node.parentNode.insertBefore(after, span.nextSibling);
-      try {
-        var c = new window.countUp.CountUp(span, num, {
-          duration: 1.6, decimalPlaces: decimals, separator: ",", useEasing: true
-        });
-        if (!c.error) c.start(); else span.textContent = token;
-      } catch (e) { span.textContent = token; }
+    if (document.readyState === "complete") setTimeout(kickOff, 1000);
+    else { on(window, "load", function () { setTimeout(kickOff, 1000); }); }
+
+    /* PERF: pause when the tab is hidden (cheap visibility hook). */
+    on(document, "visibilitychange", function () {
+      if (document.hidden) { try { v.pause(); } catch (e) {} }
+      else tryPlay();
     });
+
+    if (toggle) on(toggle, "click", function () {
+      bgUserOn = !bgUserOn;
+      paintToggle();
+      if (!bgUserOn) { try { v.pause(); } catch (e) {} v.style.display = "none"; }
+      else { v.style.display = ""; tryPlay(); }
+    });
+    paintToggle();
+
+    /* PERF: pause/resume during Analyze is driven by setLoader() below
+       (single source of truth), not by a separate event channel. */
+    videoCtl.v = v;
+    videoCtl.tryPlay = tryPlay;
   }
 
-  /* -------------------- 6. chrome -------------------- */
+  /* Shared video pause/resume used by the loader (Analyze running). */
+  var videoCtl = { v: null, tryPlay: null };
+  function pauseVideoForWork() {
+    analyzing = true;
+    try { if (videoCtl.v) videoCtl.v.pause(); } catch (e) {}
+  }
+  function resumeVideoAfterWork() {
+    analyzing = false;
+    try { if (videoCtl.tryPlay) videoCtl.tryPlay(); } catch (e) {}
+  }
+
+  /* -------------------- 3. one-time section reveals -------------------- */
+  /* PERF: a single IntersectionObserver, once per section, then unobserve.
+     No ScrollTrigger, no scrub, no per-frame work. Map/chart containers
+     (.map-wrap, .chart, canvas) are never animated — only the section
+     cards fade/translate via the .is-revealed class. */
+  function initReveals() {
+    var els = document.querySelectorAll(".reveal");
+    if (!els.length) return;
+    if (!motionOK || !("IntersectionObserver" in window)) {
+      els.forEach(function (el) { el.classList.add("is-revealed"); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        en.target.classList.add("is-revealed");
+        io.unobserve(en.target);
+      });
+    }, { root: null, rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+    els.forEach(function (el) { io.observe(el); });
+  }
+
+  /* -------------------- 4. single scroll/resize handler -------------------- */
+  /* PERF: exactly one scroll listener + one resize listener, both passive
+     and rAF-throttled. Progress uses transform: scaleX (compositor-only);
+     no layout reads/writes per frame besides cheap cached rect math. */
   function setupScrollChrome() {
     var bar = document.getElementById("scrollProgress");
     var btt = document.getElementById("backToTop");
     var ring = btt ? btt.querySelector(".btt-progress") : null;
     var CIRC = 119.4;
-    var navLinks = Array.prototype.slice.call(document.querySelectorAll(".nav-link"));
-    var scrollTargets = navLinks.map(function (l) {
-      var id = l.getAttribute("data-scroll") || l.getAttribute("href");
-      return { link: l, el: id ? document.querySelector(id) : null };
-    }).filter(function (t) { return t.el; });
 
-    var update = raf(function () {
+    var update = rafThrottle(function () {
       var y = window.pageYOffset || document.documentElement.scrollTop;
       var docH = document.documentElement.scrollHeight - window.innerHeight;
-      var pct = docH > 0 ? (y / docH) : 0;
+      var pct = docH > 0 ? Math.min(1, Math.max(0, y / docH)) : 0;
 
-      if (bar) bar.style.width = (pct * 100).toFixed(2) + "%";
+      if (bar) bar.style.transform = "scaleX(" + pct.toFixed(4) + ")";
       if (navEl) navEl.classList.toggle("is-shrunk", y > 80);
 
       if (btt) {
@@ -262,26 +186,50 @@
         btt.classList.toggle("is-visible", show);
         if (ring) ring.style.strokeDashoffset = String(CIRC * (1 - pct));
       }
-
-      /* active nav link = last target whose top has passed under the navbar */
-      var active = null;
-      for (var i = 0; i < scrollTargets.length; i++) {
-        var el = scrollTargets[i].el;
-        if (!el || el.offsetParent === null) continue;
-        var r = el.getBoundingClientRect();
-        if (r.top <= navH + 90) active = scrollTargets[i].link;
-      }
-      navLinks.forEach(function (l) { l.classList.toggle("is-active", l === active); });
     });
     on(window, "scroll", update, { passive: true });
     on(window, "resize", update, { passive: true });
     update();
 
-    /* back-to-top progress ring is part of .is-visible; scroll on click */
-    if (btt) on(btt, "click", function () { scrollToEl(document.getElementById("hero") || document.body); });
+    if (btt) on(btt, "click", function () {
+      (document.getElementById("hero") || document.body)
+        .scrollIntoView({ behavior: motionOK ? "smooth" : "auto", block: "start" });
+    });
+
+    /* PERF: active nav link via IntersectionObserver (no scroll math). */
+    try {
+      var links = Array.prototype.slice.call(document.querySelectorAll(".nav-link"));
+      var byId = {};
+      links.forEach(function (l) {
+        var sel = l.getAttribute("data-scroll") || l.getAttribute("href");
+        if (sel && sel.charAt(0) === "#") {
+          var t = document.querySelector(sel);
+          if (t) byId[sel.slice(1)] = l;
+        }
+      });
+      var seen = Object.keys(byId).map(function (id) { return document.getElementById(id); })
+        .filter(function (el) { return el; });
+      if ("IntersectionObserver" in window && seen.length) {
+        var navIO = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (!en.isIntersecting) return;
+            var link = byId[en.target.id];
+            if (!link) return;
+            links.forEach(function (l) { l.classList.toggle("is-active", l === link); });
+          });
+        }, { rootMargin: "-30% 0px -60% 0px", threshold: 0 });
+        seen.forEach(function (el) { navIO.observe(el); });
+      }
+    } catch (e) {}
   }
 
-  /* -------------------- 7. smooth-scroll anchors -------------------- */
+  /* -------------------- 5. tab-aware anchor links -------------------- */
+  function scrollToEl(el) {
+    if (!el) return;
+    /* PERF: native smooth scroll (html { scroll-behavior: smooth }); the
+       scroll-margin-top rules offset the fixed navbar. No Lenis. */
+    el.scrollIntoView({ behavior: motionOK ? "smooth" : "auto", block: "start" });
+  }
   function wireAnchor(link) {
     on(link, "click", function (e) {
       var tab = link.getAttribute("data-tab");
@@ -291,29 +239,24 @@
 
       /* tab-backed links: activate the tab first (only when results exist) */
       if (tab) {
+        e.preventDefault();
         if (results && !results.hidden) {
           var tg = document.getElementById("resultTabs");
-          if (tg && typeof tg.show === "function") {
-            e.preventDefault();
-            tg.show(tab);
-            setTimeout(function () { scrollToEl(target); }, 320);
-            return;
-          }
+          if (tg && typeof tg.show === "function") tg.show(tab);
         } else {
-          /* no analysis yet — send them to the controls instead of a dead tab */
-          e.preventDefault();
-          scrollToEl(document.getElementById("controlsCard"));
-          return;
+          target = document.getElementById("controlsCard");
         }
+        setTimeout(function () { scrollToEl(target); }, 320);
+        return;
       }
-      if (target) { e.preventDefault(); scrollToEl(target); }
+      /* plain anchors use the browser default (no preventDefault). */
     });
   }
   function setupAnchors() {
     document.querySelectorAll("[data-scroll], .nav-link[data-tab]").forEach(wireAnchor);
   }
 
-  /* -------------------- 8. loaders + skeletons + toasts -------------------- */
+  /* -------------------- 6. loader + skeleton + toasts -------------------- */
   function makeToast(msg) {
     var host = document.getElementById("toastHost");
     if (!host) return;
@@ -334,55 +277,85 @@
     var el = document.getElementById("loader");
     if (!el) return;
     if (on) {
+      /* PERF: loader ON also parks the background video so the CPU/GPU is
+         free for the fetch + analysis; resume when the loader clears. */
+      pauseVideoForWork();
       el.hidden = false;
       requestAnimationFrame(function () { el.classList.add("is-on"); });
     } else {
       el.classList.remove("is-on");
       setTimeout(function () { el.hidden = true; }, 260);
+      resumeVideoAfterWork();
     }
   }
   function setSkeletons(on) {
-    document.querySelectorAll(".grid, .chart, .map-wrap").forEach(function (el) {
-      if (on) { if (!el.dataset.hadContent) el.classList.add("skeleton"); }
+    /* PERF: skeleton shimmer only exists while a fetch is running, on the
+       table/chart shells — never on live canvases mid-render. */
+    document.querySelectorAll(".grid, .chart").forEach(function (el) {
+      if (on) el.classList.add("skeleton");
       else el.classList.remove("skeleton");
     });
   }
 
   function setupStateHooks() {
     var statusBox = document.getElementById("statusBox");
+    var statusText = document.getElementById("statusText");
     var results = document.getElementById("results");
-    var summaryChips = document.getElementById("summaryChips");
     var errorBox = document.getElementById("errorBox");
     var wasLoading = false;
+    var idleTimer = null;
 
-    /* loading ↔ loader + skeletons, driven by the app's own status box */
-    if (statusBox) {
-      new MutationObserver(function () {
-        var loading = !statusBox.hidden;
-        if (loading === wasLoading) return;
-        wasLoading = loading;
-        setLoader(loading);
-        setSkeletons(loading);
-      }).observe(statusBox, { attributes: true, attributeFilter: ["hidden"] });
+    /* PERF: the app leaves its status box visible as a "Done" receipt, and
+       tab-switch redraws ("Drawing track map…") also flash it — neither
+       means a fetch is running. So the loader clears on the FIRST of:
+       status box hidden, results shown, error shown, or 2s with no progress-
+       text change (idle watchdog). It can never stick on and block input. */
+    function loadingDone() {
+      if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+      if (!wasLoading) return;
+      wasLoading = false;
+      setLoader(false);
+      setSkeletons(false);
+    }
+    function loadingActive() {
+      if (!wasLoading) {
+        wasLoading = true;
+        setLoader(true);
+        setSkeletons(true);
+      }
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(loadingDone, 2000);
     }
 
-    /* analysis complete ↔ toast + KPI count-up */
+    /* loading ↔ loader + skeletons + video pause, from the app's status box */
+    if (statusBox) {
+      new MutationObserver(function () {
+        if (!statusBox.hidden) loadingActive();
+        else loadingDone();
+      }).observe(statusBox, { attributes: true, attributeFilter: ["hidden"] });
+    }
+    if (statusText) {
+      new MutationObserver(function () {
+        if (statusBox && !statusBox.hidden) loadingActive();
+      }).observe(statusText, { childList: true, characterData: true, subtree: true });
+    }
+
+    /* analysis complete → toast + loader off (count-up animation removed) */
     var wasHidden = results ? results.hidden : true;
     if (results) {
       new MutationObserver(function () {
         if (!(results.hidden === false && wasHidden === true)) { wasHidden = results.hidden; return; }
         wasHidden = results.hidden;
-        setTimeout(function () {
-          makeToast("Analysis complete");
-          try { if (summaryChips) animateCountsIn(summaryChips); } catch (e) {}
-        }, 500);
+        loadingDone();
+        setTimeout(function () { makeToast("Analysis complete"); }, 500);
       }).observe(results, { attributes: true, attributeFilter: ["hidden"] });
     }
 
-    /* errors → toast (never replaces the app's own inline message) */
+    /* errors → toast + loader off (never replaces the app's inline message) */
     if (errorBox) {
       new MutationObserver(function () {
         if (errorBox.hidden) return;
+        loadingDone();
         var txt = (errorBox.textContent || "").trim();
         if (txt) makeToast(txt.slice(0, 90));
       }).observe(errorBox, { attributes: true, attributeFilter: ["hidden"] });
@@ -395,31 +368,8 @@
     });
   }
 
-  /* -------------------- 9. cursor + ripple + chip glow -------------------- */
-  function setupCursor() {
-    var dot = document.getElementById("cursorDot");
-    var ring = document.getElementById("cursorRing");
-    if (!dot || !ring || !finePointer || !motionOK) return;
-    document.documentElement.classList.add("cursor-on");
-
-    var mx = window.innerWidth / 2, my = window.innerHeight / 2, rx = mx, ry = my;
-    var move = raf(function () { dot.style.transform = "translate(" + mx + "px," + my + "px)"; });
-    on(window, "mousemove", function (e) { mx = e.clientX; my = e.clientY; move(); }, { passive: true });
-
-    (function loop() {
-      rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
-      ring.style.transform = "translate(" + rx + "px," + ry + "px)";
-      requestAnimationFrame(loop);
-    })();
-
-    on(document, "mouseover", function (e) {
-      var hot = e.target.closest && e.target.closest("a, button, sl-button, sl-select, sl-option, input, [role='tab']");
-      ring.classList.toggle("is-hot", !!hot);
-    });
-    on(document, "mouseleave", function () { dot.style.opacity = "0"; ring.style.opacity = "0"; });
-    on(document, "mouseenter", function () { dot.style.opacity = ""; ring.style.opacity = ""; });
-  }
-
+  /* -------------------- 7. ripple + chip glow (static, rare) -------------------- */
+  /* PERF: one-shot ripple span per click only — no loops, no listeners held. */
   function addRipple(e) {
     var el = e.currentTarget, rect = el.getBoundingClientRect();
     var size = Math.max(rect.width, rect.height);
@@ -435,7 +385,8 @@
     document.querySelectorAll(".hero-cta, .btn-race").forEach(function (el) { on(el, "click", addRipple); });
   }
 
-  /* soft glow on team-colour swatches wherever drivers/teams are listed */
+  /* soft glow on team-colour swatches wherever drivers/teams are listed
+     (static inline style, applied once per render — no animation) */
   function glowSwatches(root) {
     (root || document).querySelectorAll(".swatch").forEach(function (s) {
       if (s.dataset.glow === "1") return;
@@ -447,28 +398,16 @@
     });
   }
 
-  /* -------------------- tab + resize integration -------------------- */
   function setupTabIntegration() {
     var tg = document.getElementById("resultTabs");
     if (!tg) return;
-    on(tg, "sl-tab-show", function () {
-      var panels = tg.querySelectorAll("sl-tab-panel[active], sl-tab-panel");
-      panels.forEach(function (p) {
-        if (p.hasAttribute("active") || p.getAttribute("active") !== null) initReveals(p);
-      });
-      initReveals(tg);
-      if (window.ScrollTrigger) window.ScrollTrigger.refresh();
-      glowSwatches(tg);
-    });
-    /* results appearing (analysis done) → wire that panel's reveals */
+    /* PERF: on tab switch just refresh the static chip glow. No
+       ScrollTrigger.refresh, no reveal re-init (the IO handles it). */
+    on(tg, "sl-tab-show", function () { glowSwatches(tg); });
     var results = document.getElementById("results");
     if (results) {
       new MutationObserver(function () {
-        if (!results.hidden) {
-          initReveals(results);
-          glowSwatches(results);
-          if (window.ScrollTrigger) window.ScrollTrigger.refresh();
-        }
+        if (!results.hidden) glowSwatches(results);
       }).observe(results, { attributes: true, attributeFilter: ["hidden"] });
     }
   }
@@ -476,37 +415,19 @@
   /* -------------------- boot -------------------- */
   function boot() {
     setupVideo();
-    setupSmoothScroll();
     setupScrollChrome();
     setupAnchors();
     setupStateHooks();
     setupRipple();
 
-    if (hasGsap) {
-      try { window.gsap.registerPlugin(window.ScrollTrigger); } catch (e) {}
-    }
-
-    if (motionOK) {
-      setupHero();
-      setupParallax();
-    } else {
-      /* reduced motion: show the static hero copy, no motion at all */
-      var sub = document.getElementById("heroSubtitle");
-      if (sub) sub.textContent = "Turn-by-turn corner analysis";
-    }
-
-    initReveals(document);
+    initReveals();
     setupTabIntegration();
-    setupCursor();
     glowSwatches(document);
 
     /* tables/charts often overflow on phones — keep them scrollable in place */
     document.querySelectorAll(".grid, .chart").forEach(function (el) {
       el.style.overflowX = "auto";
     });
-
-    if (window.ScrollTrigger) setTimeout(function () { window.ScrollTrigger.refresh(); }, 400);
-    if (window.ScrollTrigger) on(window, "load", function () { window.ScrollTrigger.refresh(); });
 
     window.__f1MotionReady = true;
   }

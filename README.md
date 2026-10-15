@@ -71,61 +71,57 @@ Results open in tabs (Overview, Track Map, Corners, Head-to-Head, Drivers & Team
 
 All component files live in `public/vendor/` and are served with the site — no third-party CDN is required at runtime (verified with jsDelivr fully blocked). `public/_headers` disables caching so redeploys can never serve a stale mix of files.
 
-## Cinematic UI layer (Ferrari-inspired, optional)
+## Light UI layer (Ferrari theme, performance pass)
 
-The presentation layer — cinematic video backdrop, hero, sticky glass navbar,
-scroll progress, racing loader, toasts, custom cursor, back-to-top, scroll
-reveals — is **additive and entirely optional**. Every library is loaded with
-`defer` (never blocking first paint) and feature-detected in
-`public/animations.js`, so if a CDN is blocked the app still works, just without
-the effects. All libraries are free & open source:
+The presentation layer — lightweight video backdrop, hero, sticky navbar,
+scroll progress, racing loader, toasts, back-to-top, one-time section
+reveals — is **additive and dependency-free**. `public/animations.js` is a
+single local deferred script: **no third-party motion libraries at all**
+(GSAP, ScrollTrigger, Lenis, Vanilla-Tilt, CountUp.js, tsParticles,
+Splitting.js and Typed.js were all removed). Native `scroll-behavior: smooth`
+plus one `IntersectionObserver` do the rest.
 
-| Library | Version | CDN (pinned) | Used for |
-| --- | --- | --- | --- |
-| GSAP + ScrollTrigger | 3.12.5 | `cdn.jsdelivr.net/npm/gsap@3.12.5/…` | scroll reveals, hero, parallax |
-| Lenis | 1.1.18 | `cdn.jsdelivr.net/npm/lenis@1.1.18/…` | smooth inertial scrolling |
-| Vanilla-Tilt | 1.8.1 | `cdn.jsdelivr.net/npm/vanilla-tilt@1.8.1/…` | 3D tilt on summary card |
-| CountUp.js | 2.8.0 | `cdn.jsdelivr.net/npm/countup.js@2.8.0/…` | KPI number animation |
-| tsParticles | 2.12.0 | `cdn.jsdelivr.net/npm/tsparticles@2.12.0/…` | hero embers (≥768px) |
-| Splitting.js | 1.0.6 | `cdn.jsdelivr.net/npm/splitting@1.0.6/…` | hero title letter reveal |
-| Typed.js | 2.1.0 | `cdn.jsdelivr.net/npm/typed.js@2.1.0/…` | rotating hero subtitle |
+What was cut for speed: the custom cursor, the particle canvas, 3D tilt,
+smooth-scroll hijacking, the film-grain layer, `backdrop-filter` on every
+card/section/tab/toast/loader (blur stays only on the navbar, capped at
+`blur(8px)`), glow `box-shadow` transitions, global `will-change`, parallax
+and scrub animations, and all infinite ambient animations. Cards use a solid
+`rgba(18,18,22,.88)`; button hover is color + `translateY(-1px)` in 150ms;
+sections fade in once via `IntersectionObserver` and are then unobserved.
+Charts, track-map and duel-map containers are never animated, transformed,
+filtered or scroll-listened.
 
 Fonts (Google Fonts): **Orbitron** (numerals), **Rajdhani** (headings), **Inter** (body).
 
-Accessibility & performance: `prefers-reduced-motion: reduce` disables the video,
-parallax, particles, tilt and scroll animations and shows static content;
-Save-Data or viewport < 640px drops the video for the poster image only; the tab
-stays light (no layout shift — the navbar and video are fixed).
+Accessibility & performance: `prefers-reduced-motion: reduce` kills the video
+and all animation and shows static content. The video is skipped (poster only)
+when **any** of these is true: viewport < 768px, Save-Data, 2g/3g,
+reduced-motion, or ≤ 4 CPU cores. It starts loading only after window `load` +
+1s (`preload="none"`), pauses while Analyze runs and when the tab hides, and a
+bottom-left toggle (`Background: On/Off`, JS variable only) hides it on demand.
 
 ### Background video (self-hosted, swap freely)
 
-`public/assets/bg.webm` · `public/assets/bg.mp4` · `public/assets/hero-poster.jpg`.
-Target: **1280×720, 24–30 fps, no audio, ≤ 8 MB** each (Cloudflare Pages caps a
-single file at 25 MiB). The WebM is listed first; MP4 is the fallback.
+`public/assets/bg.webm` · `public/assets/bg.mp4` · `public/assets/bg-poster.jpg`.
+Spec: **854×480 (480p), 24 fps, 8–12 s seamless loop, no audio, ≤ 3 MB each**
+(hard cap 5 MB; Pages caps a single file at 25 MiB). The WebM is listed first;
+MP4 is the fallback. Current shipped weight: ~73 KB + ~25 KB + ~6 KB poster.
 
-Compression commands (replace `input.mov` with your clip):
+Compression commands from the performance spec (replace `input.mp4` with your clip):
 
 ```bash
-# VP9 WebM (preferred — listed first)
-ffmpeg -i input.mov -vf "scale=1280:720,vignette=PI/4" -r 30 -an \
-  -c:v libvpx-vp9 -crf 38 -b:v 0 -pix_fmt yuv420p bg.webm
-
-# H.264 MP4 (fallback)
-ffmpeg -i input.mov -vf "scale=1280:720,vignette=PI/4" -r 30 -an \
-  -c:v libx264 -profile:v high -crf 30 -pix_fmt yuv420p -movflags +faststart bg.mp4
-
-# poster frame (first frame of the same grade)
-ffmpeg -i input.mov -vf "scale=1280:720,vignette=PI/4" -frames:v 1 hero-poster.jpg
+ffmpeg -i input.mp4 -an -t 10 -vf "scale=854:-2,fps=24" -c:v libx264 -crf 30 -preset slow -movflags +faststart assets/bg.mp4
+ffmpeg -i input.mp4 -an -t 10 -vf "scale=854:-2,fps=24" -c:v libvpx-vp9 -crf 40 -b:v 0 assets/bg.webm
 ```
 
 **To swap the clip:** drop your files into `public/assets/` using the same names
-(`bg.webm`, `bg.mp4`, `hero-poster.jpg`) — no code changes needed. To use
+(`bg.webm`, `bg.mp4`, `bg-poster.jpg`) — no code changes needed. To use
 different filenames, edit the `<source>`/`poster` attributes on the `#bgVideo`
 element in `public/index.html`.
 
 > The repo currently ships a small **placeholder** clip (an abstract dark
-> Ferrari-red loop, ~95 KB) plus its poster, so the site is cinematic
-> out-of-the-box. Replace both with your footage whenever you're ready.
+> Ferrari-red loop) plus its poster, so the site works out-of-the-box.
+> Replace all three files with your footage whenever you're ready.
 
 ## Zero-storage, live-data design
 
