@@ -71,6 +71,62 @@ Results open in tabs (Overview, Track Map, Corners, Head-to-Head, Drivers & Team
 
 All component files live in `public/vendor/` and are served with the site — no third-party CDN is required at runtime (verified with jsDelivr fully blocked). `public/_headers` disables caching so redeploys can never serve a stale mix of files.
 
+## Cinematic UI layer (Ferrari-inspired, optional)
+
+The presentation layer — cinematic video backdrop, hero, sticky glass navbar,
+scroll progress, racing loader, toasts, custom cursor, back-to-top, scroll
+reveals — is **additive and entirely optional**. Every library is loaded with
+`defer` (never blocking first paint) and feature-detected in
+`public/animations.js`, so if a CDN is blocked the app still works, just without
+the effects. All libraries are free & open source:
+
+| Library | Version | CDN (pinned) | Used for |
+| --- | --- | --- | --- |
+| GSAP + ScrollTrigger | 3.12.5 | `cdn.jsdelivr.net/npm/gsap@3.12.5/…` | scroll reveals, hero, parallax |
+| Lenis | 1.1.18 | `cdn.jsdelivr.net/npm/lenis@1.1.18/…` | smooth inertial scrolling |
+| Vanilla-Tilt | 1.8.1 | `cdn.jsdelivr.net/npm/vanilla-tilt@1.8.1/…` | 3D tilt on summary card |
+| CountUp.js | 2.8.0 | `cdn.jsdelivr.net/npm/countup.js@2.8.0/…` | KPI number animation |
+| tsParticles | 2.12.0 | `cdn.jsdelivr.net/npm/tsparticles@2.12.0/…` | hero embers (≥768px) |
+| Splitting.js | 1.0.6 | `cdn.jsdelivr.net/npm/splitting@1.0.6/…` | hero title letter reveal |
+| Typed.js | 2.1.0 | `cdn.jsdelivr.net/npm/typed.js@2.1.0/…` | rotating hero subtitle |
+
+Fonts (Google Fonts): **Orbitron** (numerals), **Rajdhani** (headings), **Inter** (body).
+
+Accessibility & performance: `prefers-reduced-motion: reduce` disables the video,
+parallax, particles, tilt and scroll animations and shows static content;
+Save-Data or viewport < 640px drops the video for the poster image only; the tab
+stays light (no layout shift — the navbar and video are fixed).
+
+### Background video (self-hosted, swap freely)
+
+`public/assets/bg.webm` · `public/assets/bg.mp4` · `public/assets/hero-poster.jpg`.
+Target: **1280×720, 24–30 fps, no audio, ≤ 8 MB** each (Cloudflare Pages caps a
+single file at 25 MiB). The WebM is listed first; MP4 is the fallback.
+
+Compression commands (replace `input.mov` with your clip):
+
+```bash
+# VP9 WebM (preferred — listed first)
+ffmpeg -i input.mov -vf "scale=1280:720,vignette=PI/4" -r 30 -an \
+  -c:v libvpx-vp9 -crf 38 -b:v 0 -pix_fmt yuv420p bg.webm
+
+# H.264 MP4 (fallback)
+ffmpeg -i input.mov -vf "scale=1280:720,vignette=PI/4" -r 30 -an \
+  -c:v libx264 -profile:v high -crf 30 -pix_fmt yuv420p -movflags +faststart bg.mp4
+
+# poster frame (first frame of the same grade)
+ffmpeg -i input.mov -vf "scale=1280:720,vignette=PI/4" -frames:v 1 hero-poster.jpg
+```
+
+**To swap the clip:** drop your files into `public/assets/` using the same names
+(`bg.webm`, `bg.mp4`, `hero-poster.jpg`) — no code changes needed. To use
+different filenames, edit the `<source>`/`poster` attributes on the `#bgVideo`
+element in `public/index.html`.
+
+> The repo currently ships a small **placeholder** clip (an abstract dark
+> Ferrari-red loop, ~95 KB) plus its poster, so the site is cinematic
+> out-of-the-box. Replace both with your footage whenever you're ready.
+
 ## Zero-storage, live-data design
 
 To save space, this app **stores no F1 data at all** — no CSVs, no databases, no downloads:

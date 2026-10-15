@@ -5,27 +5,126 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis</title>
 <meta name="description" content="Live F1 session analyzer. Pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) and get turn-by-turn driver and team corner analysis. All data is fetched live from the OpenF1 API on page load — nothing is stored." />
+<meta name="theme-color" content="#0a0a0c" />
+
+<!-- ===================== FONTS (Ferrari-inspired type system) =====================
+     Orbitron  → outlined section numerals + KPI numbers
+     Rajdhani  → headings (racing condensed)
+     Inter     → body copy
+     Pinned Google Fonts CSS2 endpoint; fallback stacks live in styles.css. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+
+<!-- ===================== Splitting.js base CSS (char/word wrappers) ===================== -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/splitting@1.0.6/dist/splitting.css" />
+
+<!-- ===================== existing self-hosted UI libraries ===================== -->
 <link rel="stylesheet" href="vendor/shoelace/themes/dark.css" />
 <link rel="stylesheet" href="vendor/tabulator.min.css" />
 <link rel="stylesheet" href="styles.css" />
+
+<!-- Motion bootstrap: hides reveal targets ONLY when motion will actually run,
+     so a blocked CDN / disabled JS can never leave content stuck invisible.
+     animations.js clears the safety timer by setting window.__f1MotionReady. -->
+<script>
+(function () {
+  var reduce = false;
+  try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+  if (reduce) return;
+  document.documentElement.classList.add("js-motion");
+  setTimeout(function () {
+    if (!window.__f1MotionReady) document.documentElement.classList.remove("js-motion");
+  }, 4000);
+})();
+</script>
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <span class="flag">🏁</span>
-    <div>
-      <h1>F1 Session <em>Analyzer</em></h1>
-      <p>Turn-by-turn driver &amp; team corner analysis</p>
+
+<!-- ===================== SCROLL PROGRESS BAR =====================
+     3px Ferrari-red bar pinned to the very top; width tracks page progress. -->
+<div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+<!-- ===================== CINEMATIC VIDEO BACKGROUND =====================
+     position:fixed; inset:0; z-index:-2 (video) and -1 (overlay/grain) so it
+     sits behind all page content. The clip is self-hosted in public/assets/.
+     Replace it with any dark motorsport footage — see README (ffmpeg commands).
+     Compression target: 1280x720, 24-30fps, no audio, <= 8 MB. -->
+<video
+  id="bgVideo"
+  class="bg-video"
+  autoplay muted loop playsinline
+  preload="metadata"
+  poster="assets/hero-poster.jpg"
+  aria-hidden="true" tabindex="-1">
+  <source src="assets/bg.webm" type="video/webm" />
+  <source src="assets/bg.mp4" type="video/mp4" />
+</video>
+<div class="bg-overlay" aria-hidden="true"></div>
+<div class="bg-grain" aria-hidden="true"></div>
+
+<!-- ===================== STICKY GLASS NAVBAR ===================== -->
+<nav class="navbar" id="navbar" aria-label="Primary">
+  <a class="nav-logo" href="#hero" data-scroll="#hero" aria-label="F1 Session Analyzer — top">
+    <svg class="nav-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+      <rect x="2" y="4" width="28" height="22" rx="2" fill="#0a0a0c" stroke="#DC0000" stroke-width="1.6"/>
+      <g fill="#f2f2f2">
+        <rect x="4" y="6" width="5" height="5"/><rect x="14" y="6" width="5" height="5"/><rect x="24" y="6" width="5" height="5"/>
+        <rect x="9" y="11" width="5" height="5"/><rect x="19" y="11" width="5" height="5"/>
+        <rect x="4" y="16" width="5" height="5"/><rect x="14" y="16" width="5" height="5"/><rect x="24" y="16" width="5" height="5"/>
+      </g>
+      <path d="M2 29 L30 25" stroke="#DC0000" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span class="nav-title">F1 <em>Analyzer</em></span>
+  </a>
+  <ul class="nav-links" id="navLinks">
+    <li><a class="nav-link" href="#controlsCard" data-scroll="#controlsCard">Session</a></li>
+    <li><a class="nav-link" href="#trackMap" data-tab="track">Track map</a></li>
+    <li><a class="nav-link" href="#cornerGrid" data-tab="corners">Turns</a></li>
+    <li><a class="nav-link" href="#h2hMap" data-tab="duel">Head-to-head</a></li>
+    <li><a class="nav-link" href="#driverGrid" data-tab="drivers">Drivers</a></li>
+    <li><a class="nav-link" href="#teamGrid" data-tab="drivers" data-scroll="#teamGrid">Teams</a></li>
+    <li><a class="nav-link" href="#paceGrid" data-tab="pace">Pace</a></li>
+    <li><a class="nav-link" href="#weekendResult" data-tab="weekend">Weekend</a></li>
+    <li><a class="nav-link" href="#speedChart" data-tab="traces">Traces</a></li>
+  </ul>
+</nav>
+
+<!-- ===================== HERO (new, above section 01) ===================== -->
+<header class="hero" id="hero">
+  <div class="hero-particles" id="heroParticles" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <div class="hero-mark" aria-hidden="true">
+      <svg viewBox="0 0 120 120" width="104" height="104" focusable="false">
+        <defs>
+          <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#DC0000"/><stop offset="1" stop-color="#ff2a2a"/>
+          </linearGradient>
+        </defs>
+        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#hg)" stroke-width="2" opacity="0.7"/>
+        <g fill="#f2f2f2">
+          <rect x="30" y="34" width="11" height="11"/><rect x="52" y="34" width="11" height="11"/><rect x="74" y="34" width="11" height="11"/>
+          <rect x="41" y="45" width="11" height="11"/><rect x="63" y="45" width="11" height="11"/>
+          <rect x="30" y="56" width="11" height="11"/><rect x="52" y="56" width="11" height="11"/><rect x="74" y="56" width="11" height="11"/>
+        </g>
+        <path d="M26 92 L94 74" stroke="#DC0000" stroke-width="3" stroke-linecap="round"/>
+        <path d="M30 100 L90 84" stroke="#ff2a2a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+      </svg>
     </div>
+    <h1 class="hero-title" id="heroTitle" data-splitting>F1 Session <span class="hero-word" id="heroWord">Analyzer</span></h1>
+    <p class="hero-sub" id="heroSubtitle" aria-label="Turn-by-turn corner analysis"></p>
+    <a class="hero-cta" id="startAnalysing" href="#controlsCard" data-scroll="#controlsCard"><span class="cta-label">Start analysing&nbsp;<span aria-hidden="true">↓</span></span></a>
   </div>
+  <div class="speed-lines" aria-hidden="true"></div>
+  <div class="mouse-scroll" aria-hidden="true"><span class="mouse-dot"></span></div>
 </header>
+
+<!-- ===================== DIVIDER (section 01 → results) ===================== -->
+<div class="divider" aria-hidden="true"></div>
 
 <main>
   <!-- ============ CONTROLS ============ -->
-  <section class="card" id="controlsCard">
+  <section class="card reveal" id="controlsCard">
     <h2><span class="tick"><span>01</span></span>Select session</h2>
     <p class="hint">
       Every session type — Practice 1/2/3, Qualifying, Sprint Qualifying,
@@ -69,7 +168,7 @@
       <sl-tab slot="nav" panel="guide">Guide</sl-tab>
 
       <sl-tab-panel name="overview">
-        <section class="card" id="summaryCard">
+        <section class="card reveal" id="summaryCard">
           <h2><span class="tick"><span>02</span></span>Session summary</h2>
           <div id="circuitHero" class="circuit-hero" hidden></div>
           <div id="sessionMeta" class="meta"></div>
@@ -79,7 +178,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="track">
-        <section class="card">
+        <section class="card reveal">
           <h2><span class="tick"><span>03</span></span>Track map — who is fastest where</h2>
           <p class="hint">Segments coloured by the <strong>fastest team</strong> in each part of the lap.
             Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
@@ -100,7 +199,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="corners">
-        <section class="card card-wide">
+        <section class="card reveal card-wide">
           <div class="card-head"><h2><span class="tick"><span>04</span></span>Turn-by-turn analysis</h2><sl-button id="cornerCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <p class="hint">Each corner window (±1.2% of lap distance around the apex) is ranked by
             <strong>average speed</strong>. Faster through the corner means better. Click a column header to sort.</p>
@@ -109,7 +208,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="duel">
-        <section class="card card-wide">
+        <section class="card reveal card-wide">
           <h2><span class="tick"><span>05</span></span>Head-to-head</h2>
           <p class="hint">Pick any two analyzed drivers: per-corner speed deltas across the whole lap, fought out on the duel map.</p>
           <div class="controls-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,220px))">
@@ -125,18 +224,18 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="drivers">
-        <section class="card card-wide">
+        <section class="card reveal card-wide">
           <div class="card-head"><h2><span class="tick"><span>06</span></span>Driver analysis</h2><sl-button id="driverCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <div id="driverGrid" class="grid"></div>
         </section>
-        <section class="card card-wide">
+        <section class="card reveal card-wide">
           <div class="card-head"><h2><span class="tick"><span>07</span></span>Team analysis</h2><sl-button id="teamCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <div id="teamGrid" class="grid"></div>
         </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="sectors">
-        <section class="card card-wide">
+        <section class="card reveal card-wide">
           <div class="card-head"><h2><span class="tick"><span>08</span></span>Sectors &amp; speed traps</h2><sl-button id="sectorCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <p class="hint">Sector splits and trap speeds from each driver's best lap (I1/I2 intermediates, ST finish-line trap).</p>
           <div id="sectorGrid" class="grid"></div>
@@ -144,7 +243,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="pace">
-        <section class="card card-wide" id="racePaceCard">
+        <section class="card reveal card-wide" id="racePaceCard">
           <div class="card-head"><h2><span class="tick"><span>09</span></span>Race pace &amp; tyre degradation</h2><sl-button id="paceCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <p class="hint">Stint-average pace and degradation slope (seconds lost per lap, least-squares fit).
             Out-laps and incident laps are excluded.</p>
@@ -153,7 +252,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="weekend">
-        <section class="card card-wide">
+        <section class="card reveal card-wide">
           <h2><span class="tick"><span>10</span></span>Weekend view — how corner dominance shifted</h2>
           <p class="hint">Lite analysis (top 5 per session) of <strong>every session of this Grand Prix weekend</strong>:
             which team owned each corner, session by session. Takes a while — progress is shown above.</p>
@@ -165,7 +264,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="traces">
-        <section class="card">
+        <section class="card reveal">
           <h2><span class="tick"><span>11</span></span>Speed traces — best laps overlaid</h2>
           <p class="hint">Speed (km/h) against lap progress for each driver's best lap. Click legend entries to toggle drivers; drag to zoom.</p>
           <div id="speedChart" class="chart"></div>
@@ -173,14 +272,14 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="classification">
-        <section class="card card-wide">
+        <section class="card reveal card-wide">
           <h2><span class="tick"><span>12</span></span>Official session classification</h2>
           <div id="resultGrid" class="grid"></div>
         </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="guide">
-        <section class="card">
+        <section class="card reveal">
           <h2><span class="tick"><span>13</span></span>How this works</h2>
           <div class="how">
             <p><strong>Best lap.</strong> For every driver we take the single fastest non-pit-out lap of the session you selected — nothing else from the weekend is used.</p>
@@ -195,6 +294,44 @@
   </section>
 </main>
 
+<!-- ===================== FOOTER ===================== -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <p class="footer-line">
+      <strong>Data:</strong>
+      <a href="https://openf1.org" target="_blank" rel="noopener noreferrer">OpenF1 API</a>
+      <span class="footer-sep">·</span>
+      Unofficial fan project, not affiliated with Formula 1 or Ferrari
+    </p>
+    <a class="footer-top" href="#hero" data-scroll="#hero">Back to top ↑</a>
+  </div>
+</footer>
+
+<!-- ===================== FLOATING UI: back-to-top · toasts · loader · cursor ===================== -->
+<button id="backToTop" class="back-to-top" aria-label="Back to top" hidden>
+  <svg viewBox="0 0 44 44" width="44" height="44" aria-hidden="true" focusable="false">
+    <circle class="btt-track" cx="22" cy="22" r="19" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="3"/>
+    <circle class="btt-progress" cx="22" cy="22" r="19" fill="none" stroke="#DC0000" stroke-width="3"
+      stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" transform="rotate(-90 22 22)"/>
+  </svg>
+  <span class="btt-chevron" aria-hidden="true">↑</span>
+</button>
+
+<div class="toast-host" id="toastHost" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<div class="loader" id="loader" hidden aria-hidden="true">
+  <div class="loader-inner">
+    <div class="lights" aria-hidden="true">
+      <span class="light"></span><span class="light"></span><span class="light"></span><span class="light"></span><span class="light"></span>
+    </div>
+    <div class="loader-label">Loading live data…</div>
+  </div>
+</div>
+
+<div class="cursor-dot" id="cursorDot" aria-hidden="true"></div>
+<div class="cursor-ring" id="cursorRing" aria-hidden="true"></div>
+
+<!-- ===================== existing self-hosted libraries + app ===================== -->
 <script src="vendor/tabulator.min.js"></script>
 <script src="vendor/echarts.min.js"></script>
 <script type="module" src="vendor/shoelace/shoelace-autoloader.js" data-shoelace="/vendor/shoelace"></script>
@@ -225,5 +362,18 @@ window.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 <script src="app.js"></script>
+
+<!-- ===================== CINEMATIC MOTION (CDN, pinned, free & open source) =====================
+     Loaded with defer so first paint is never blocked; animations.js runs last and
+     lazy-inits on DOMContentLoaded. If a CDN is blocked the page still works. -->
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/vanilla-tilt@1.8.1/dist/vanilla-tilt.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/countup.js@2.8.0/dist/countUp.umd.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/splitting@1.0.6/dist/splitting.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/typed.js@2.1.0/dist/typed.umd.js"></script>
+<script defer src="animations.js"></script>
 </body>
 </html>
