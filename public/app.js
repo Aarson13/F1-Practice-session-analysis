@@ -973,6 +973,8 @@ async function runAnalysis() {
     await sleep(30);
     await renderAll();
     $("results").hidden = false;
+    // The lap-delta figure reads the same analysis the Sectors table renders.
+    if (window.mountF1LapDelta) window.mountF1LapDelta(a);
     // The shareable analysis is the route change this page has; announce it by
     // moving focus to the summary heading rather than leaving focus on Analyze.
     focusPanelHeading("overview");

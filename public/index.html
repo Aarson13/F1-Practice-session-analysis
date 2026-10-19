@@ -261,6 +261,12 @@
           <div id="summaryChips" class="chips"></div>
           <div id="contextStrip" class="chips chips--tight"></div>
         </section>
+        <section class="card reveal" id="lapDeltaCard">
+          <h2><span class="tick"><span>Δ</span></span>Lap delta by sector</h2>
+          <p class="hint">The second-fastest lap split against the fastest. Point at a sector to read the time gained or lost; the Sectors table has every driver and trap.</p>
+          <div class="hairline-figure" id="f1-lap-delta"></div>
+          <p class="hairline-read" data-hairline-read aria-live="polite">rest</p>
+        </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="track">
@@ -457,6 +463,12 @@ window.addEventListener("DOMContentLoaded", function () {
 </script>
 <!-- UI: deferred with the vendor scripts above — top level only defines
      functions and wires DOMContentLoaded, so delaying execution is safe. -->
+<!-- Hairline: the engine, its mount adapter and the lap-delta figure. The
+     scripts are same-origin and the engine's inject() is never called, so the
+     strict script-src / style-src policy is unchanged. -->
+<script defer src="hairline/kernel.js"></script>
+<script defer src="hairline/mount.js"></script>
+<script defer src="hairline/lapdelta.js"></script>
 <script defer src="app.js"></script>
 
 <!-- ===================== LIGHT UI LAYER (local, deferred) =====================

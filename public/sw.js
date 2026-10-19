@@ -28,12 +28,15 @@
  * ===================================================================== */
 'use strict';
 
-const VERSION = 'f1-analyzer-v1';
+const VERSION = 'f1-analyzer-v2';
 const SHELL = [
   '/',
   '/styles.css',
   '/components.css',
   '/app.js',
+  '/hairline/kernel.js',
+  '/hairline/mount.js',
+  '/hairline/lapdelta.js',
   '/animations.js',
   '/components.js',
   '/fonts.css'

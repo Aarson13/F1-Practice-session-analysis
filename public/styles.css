@@ -777,3 +777,53 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
   color: #fff; cursor: pointer;
 }
 .update-bar button:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
+
+/* ------------------------------------------------------ hairline figures -- */
+/* The engine's palette mapped onto this site's tokens. inject() is never
+ * called, so these rules stand in for its stylesheet under style-src 'self'. */
+.hairline-figure {
+  --hairline-plate: var(--card);
+  --hairline-hi: var(--text);
+  --hairline-edge: var(--muted);
+  --hairline-mid: var(--border);
+  --hairline-lo: var(--line);
+  --hairline-stroke: 1;
+  position: relative;
+  display: block;
+  width: min(100%, 400px);
+  aspect-ratio: 5 / 4;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hairline-figure > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.hairline-figure > svg :where(path, polygon, ellipse, line) {
+  fill: var(--hairline-plate);
+  stroke: var(--hairline-mid);
+  stroke-width: var(--hairline-stroke);
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  transition: stroke 0.1s cubic-bezier(.4, 0, .2, 1);
+}
+.hairline-figure > svg :where(.nf) { fill: none; }
+.hairline-figure > svg :where(.fo) { stroke: none; }
+.hairline-figure > svg :where(.sil) { stroke: var(--hairline-edge); }
+.hairline-figure > svg :where(.hi) { stroke: var(--hairline-hi); }
+.hairline-figure > svg :where(.lo) { stroke: var(--hairline-lo); }
+.hairline-figure > svg :where(.dash) { stroke-dasharray: 1 3; }
+.hairline-figure > svg :where(.dot) { stroke: none; fill: var(--hairline-hi); }
+.hairline-figure > svg :where(.dot.m) { fill: var(--hairline-edge); }
+.hairline-figure > svg :where(.dot.off) { fill: var(--hairline-lo); }
+.hairline-card { display: grid; gap: 8px; }
+.hairline-read {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hairline-figure > svg :where(path, polygon, ellipse, line) { transition: none; }
+}
