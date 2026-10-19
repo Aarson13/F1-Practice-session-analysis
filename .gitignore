@@ -1,0 +1,8 @@
+# Local state, never published and never committed.
+#
+# This repository had no ignore file at all until 16 Oct 2026, which is how
+# `wrangler pages dev`'s own state directory ended up as an untracked entry in
+# every `git status` — a local server's cache and database files, none of which
+# belong in a commit. The sibling sites ignore these; this one now does too.
+.wrangler/
+.pages-dist/

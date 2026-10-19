@@ -704,3 +704,76 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
   .js-motion .reveal { opacity: 1 !important; transform: none !important; }
   .card h2::after { width: 72%; }
 }
+
+/* ============================ I. CONTRACT UTILITIES + LAYOUT CLASSES ============================
+   Added with the F1 component batch. Every class here replaces an inline
+   `style=""` attribute the audit listed (and one runtime `style.marginTop`), so
+   the policy can be `style-src 'self'` with no `'unsafe-inline'` and no markup
+   loses its margins. Nothing here changes a single existing rule: these are new
+   names only. */
+
+/* Skip link: first focusable element on the page, visible only when focused. */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 200;
+  padding: 10px 16px; border-radius: 8px;
+  background: var(--red); color: #fff; font-weight: 700; font-size: 14px;
+  text-decoration: none; transform: translateY(-200%);
+  transition: transform 150ms ease;
+}
+.skip-link:focus { transform: translateY(0); outline: 2px solid #fff; outline-offset: 2px; }
+
+/* The layout intents the nine removed inline attributes carried. */
+.chips--tight { margin-top: 8px; }
+.chips--block { margin-bottom: 10px; }
+.controls-row--map { margin: 0 0 10px; }
+.controls-row--flush { margin-top: 0; }
+.controls-grid--duel { grid-template-columns: repeat(auto-fit, minmax(180px, 220px)); }
+.map-wrap--spaced, .h2h-result, .weekend-result { margin-top: 12px; }
+.grid--spaced { margin-top: 12px; }
+.hint--flush { margin: 0; }
+.hint--padded { padding: 12px; }
+
+/* The twenty-one generated inline styles in app.js. */
+.muted { color: var(--muted); }
+.portrait--22 { width: 22px; height: 22px; }
+.portrait--26 { width: 26px; height: 26px; }
+.portrait--32 { width: 32px; height: 32px; }
+.portrait--40 { width: 40px; height: 40px; }
+.delta { font-weight: 800; }
+.delta--up { color: var(--good); }
+.delta--down { color: var(--accent-hi); }
+
+/* Shared 44px touch-target utility. As on every sibling site the class is the
+   contract and the media query is what reaches markup the app re-renders. */
+.touch-target { min-height: 44px; min-width: 44px; }
+@media (pointer: coarse) {
+  .nav-link,
+  .menu-btn,
+  .hero-cta,
+  .footer-top,
+  .back-to-top,
+  .bg-toggle,
+  .skip-link,
+  #resultTabs sl-tab,
+  #resultTabs::part(tab),
+  .controls-row sl-button,
+  .controls-row sl-select,
+  .card-head sl-button { min-height: 44px; }
+  .touch-target { min-height: 44px; min-width: 44px; }
+}
+
+/* Service-worker update bar (components.js shows it when a new worker waits). */
+.update-bar {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 120;
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px;
+  border-radius: 999px; border: 1px solid var(--border);
+  background: rgba(18, 18, 22, 0.96); color: var(--text); font-size: 13px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+.update-bar[hidden] { display: none; }
+.update-bar button {
+  font: inherit; font-weight: 700; font-size: 13px; padding: 8px 14px;
+  border-radius: 999px; border: 1px solid var(--red); background: var(--red);
+  color: #fff; cursor: pointer;
+}
+.update-bar button:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }

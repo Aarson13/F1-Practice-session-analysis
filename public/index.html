@@ -3,9 +3,66 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis</title>
-<meta name="description" content="Live F1 session analyzer. Pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) and get turn-by-turn driver and team corner analysis. All data is fetched live from the OpenF1 API on page load — nothing is stored." />
+<title>F1 Session Analyzer | Corner Speed &amp; Telemetry Tool</title>
+<meta name="description" content="Compare F1 corner speeds by driver and team with live OpenF1 telemetry. Explore turn-by-turn analysis, lap traces, sector times, and race pace." />
+<link rel="canonical" href="https://f1-practice-session-analysis.pages.dev/" />
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
 <meta name="theme-color" content="#0a0a0c" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="F1 Session Analyzer" />
+<meta property="og:title" content="F1 Session Analyzer | Corner Speed &amp; Telemetry Tool" />
+<meta property="og:description" content="Compare F1 corner speeds by driver and team with live OpenF1 telemetry. Explore turn-by-turn analysis, lap traces, sectors, and race pace." />
+<meta property="og:url" content="https://f1-practice-session-analysis.pages.dev/" />
+<meta property="og:image" content="https://f1-practice-session-analysis.pages.dev/assets/social-card.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="F1 Session Analyzer — compare driver and team corner speeds with live telemetry." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="F1 Session Analyzer | Corner Speed &amp; Telemetry Tool" />
+<meta name="twitter:description" content="Compare F1 corner speeds by driver and team with live OpenF1 telemetry. Explore turn-by-turn analysis, lap traces, sectors, and race pace." />
+<meta name="twitter:image" content="https://f1-practice-session-analysis.pages.dev/assets/social-card.png" />
+<meta name="twitter:image:alt" content="F1 Session Analyzer — compare driver and team corner speeds with live telemetry." />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://f1-practice-session-analysis.pages.dev/#website",
+      "url": "https://f1-practice-session-analysis.pages.dev/",
+      "name": "F1 Session Analyzer",
+      "inLanguage": "en"
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://f1-practice-session-analysis.pages.dev/#application",
+      "name": "F1 Session Analyzer",
+      "url": "https://f1-practice-session-analysis.pages.dev/",
+      "description": "Compare Formula 1 driver and team corner speeds using live OpenF1 telemetry.",
+      "applicationCategory": "DataAnalysis",
+      "operatingSystem": "Web",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+      "creator": {
+        "@id": "https://f1-practice-session-analysis.pages.dev/#creator",
+        "@type": "Person",
+        "name": "Parth Soni",
+        "url": "https://parth-portfolio-wb.pages.dev/"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "@id": "https://f1-practice-session-analysis.pages.dev/#csv-exports",
+      "name": "F1 session analysis CSV exports",
+      "description": "On-demand CSV tables generated in the browser from a selected Formula 1 session analysis. Exportable tables include corner speeds, driver and team comparisons, sectors and speed traps, and race pace when available.",
+      "creator": { "@id": "https://f1-practice-session-analysis.pages.dev/#creator" },
+      "isAccessibleForFree": true,
+      "inLanguage": "en",
+      "variableMeasured": ["Average corner speed", "Driver and team comparisons", "Sector times", "Speed traps", "Race pace and tyre degradation"]
+    }
+  ]
+}
+</script>
 <!-- UI: inline SVG favicon (data: URI, zero extra requests) so browsers never
      404 on /favicon.ico. Allowed by the CSP (img-src 'self' data:). -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0a0c'/%3E%3Crect x='2' y='2' width='6' height='6' fill='%23f2f2f2'/%3E%3Crect x='8' y='8' width='6' height='6' fill='%23f2f2f2'/%3E%3Crect x='8' y='2' width='6' height='6' fill='%23DC0000'/%3E%3Crect x='2' y='8' width='6' height='6' fill='%23DC0000'/%3E%3C/svg%3E" />
@@ -13,10 +70,16 @@
 <!-- ===================== FONTS =====================
      UI: Rajdhani 600/700 (headings, numerals) + Inter 400/600 (body) only,
      display=swap with system fallbacks (see styles.css). Orbitron removed
-     to stay inside the font budget. -->
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet" />
+     to stay inside the font budget.
+
+     Served from /fonts/ by this site now, not from Google. fonts.css is written
+     by tools/self-host-fonts.mjs from the same fetch that downloads the files;
+     it must come before styles.css so the faces are declared before anything
+     asks for them. Two preconnects and a render-blocking third-party stylesheet
+     are gone with the switch, and so are the two origins the CSP used to carry
+     for them — `font-src 'self'` and a `style-src` with no Google in it, the same
+     shape as every sibling site's policy. -->
+<link rel="stylesheet" href="/fonts.css" />
 
 <!-- PERF: removed Splitting.js CSS (hero title reveal is now a single CSS
      fade-in; no per-letter JS splitting, no extra request). -->
@@ -24,6 +87,7 @@
 <link rel="stylesheet" href="vendor/shoelace/themes/dark.css" />
 <link rel="stylesheet" href="vendor/tabulator.min.css" />
 <link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="components.css" />
 
 <!-- Motion bootstrap: hides reveal targets ONLY when motion will actually run,
      so a blocked CDN / disabled JS can never leave content stuck invisible.
@@ -41,6 +105,8 @@
 </script>
 </head>
 <body>
+
+<a class="skip-link" href="#main">Skip to content</a>
 
 <!-- UI: fixed background video wrap (first child of body). Procedural
      10s night-race loop, generated by tools/make_bg_video.py — no footage,
@@ -109,7 +175,7 @@
         <path d="M30 100 L90 84" stroke="#ff2a2a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
       </svg>
     </div>
-    <h1 class="hero-title" id="heroTitle">F1 SESSION <span class="hero-word" id="heroWord">ANALYZER</span></h1>
+    <h1 class="hero-title" id="heroTitle">F1 Session <span class="hero-word" id="heroWord" aria-hidden="true">Analyzer</span></h1>
     <!-- PERF: static subtitle text. The rotating Typed.js subtitle was a
          non-essential always-on JS effect; one line, zero JS. -->
     <p class="hero-sub" id="heroSubtitle">Turn-by-turn corner analysis · Live OpenF1 data · Every session. Every corner.</p>
@@ -122,7 +188,7 @@
 <!-- ===================== DIVIDER (section 01 → results) ===================== -->
 <div class="divider" aria-hidden="true"></div>
 
-<main>
+<main id="main" tabindex="-1">
   <!-- ============ CONTROLS ============ -->
   <section class="card reveal" id="controlsCard">
     <h2><span class="tick"><span>01</span></span>Select session</h2>
@@ -152,6 +218,26 @@
     <div id="errorBox" class="error" hidden></div>
   </section>
 
+  <!-- Crawlable explanatory content: available in the original HTML without
+       waiting for OpenF1, client-side rendering, or opening the results tabs. -->
+  <section class="card seo-content" aria-labelledby="about-heading">
+    <h2 id="about-heading">F1 corner speed analysis, made comparable</h2>
+    <p class="hint">Compare how Formula 1 drivers and teams carry speed through each corner. Choose a Grand Prix session to explore turn-by-turn rankings, head-to-head laps, speed traces, sector times, and race pace—all in one free, browser-based analysis tool.</p>
+    <h3>How this F1 telemetry analysis works</h3>
+    <p class="hint">The analyzer requests session, lap, driver, and car telemetry from the OpenF1 API when you choose an analysis. For each driver, it selects the fastest eligible lap, converts speed samples into distance along the lap, and resamples the lap into 1,000 evenly spaced points so speeds can be compared at the same track position.</p>
+    <p class="hint">Corner apexes come from the circuit data when available; if that geometry cannot be loaded, the tool estimates corners from speed minima. Each corner is evaluated in a small window around its apex (about ±1.2% of lap distance) using average speed. Team corner scores average the analyzed drivers for that team. These are telemetry-based comparisons, not official classifications or claims about overall race performance.</p>
+    <h3>Frequently asked questions</h3>
+    <h4>Which F1 sessions can I analyze?</h4>
+    <p class="hint">Select an available Practice, Qualifying, Sprint, Sprint Shootout or Sprint Qualifying, or Race session. Availability depends on the season and on the sessions published by OpenF1.</p>
+    <h4>Is the corner-speed comparison based on official F1 timing?</h4>
+    <p class="hint">The app uses telemetry and session information served by OpenF1, an independent data API. The comparisons are calculated by this tool and are not official Formula 1 results.</p>
+    <h4>Does the tool save my session data?</h4>
+    <p class="hint">No. Session data is requested live and analyzed in your browser; the app does not store the fetched F1 data. You can export available analysis tables as CSV after an analysis has loaded.</p>
+    <h4>Why might an analysis be slow or incomplete?</h4>
+    <p class="hint">The tool makes live API requests and paces them to respect service limits. Older or incomplete sessions may have missing telemetry, and some results can take longer to load. Try analyzing fewer drivers if requests are slow.</p>
+    <p class="hint">For more about the project, visit <a href="https://parth-portfolio-wb.pages.dev/">Parth Soni’s portfolio</a> or read <a href="https://medium.com/@soni.soni.parth">race reports on Medium</a>.</p>
+  </section>
+
   <!-- ============ RESULTS (tabbed) ============ -->
   <section id="results" hidden>
     <sl-tab-group id="resultTabs" placement="top">
@@ -173,7 +259,7 @@
           <div id="circuitHero" class="circuit-hero" hidden></div>
           <div id="sessionMeta" class="meta"></div>
           <div id="summaryChips" class="chips"></div>
-          <div id="contextStrip" class="chips" style="margin-top:8px"></div>
+          <div id="contextStrip" class="chips chips--tight"></div>
         </section>
       </sl-tab-panel>
 
@@ -182,14 +268,14 @@
           <h2><span class="tick"><span>03</span></span>Track map — who is fastest where</h2>
           <p class="hint">Segments coloured by the <strong>fastest team</strong> in each part of the lap.
             Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
-          <div class="controls-row" style="margin:0 0 10px">
+          <div class="controls-row controls-row--map">
             <sl-button id="replayBtn" variant="default">▶ Replay best laps</sl-button>
-            <sl-select id="replaySpeed" label="Speed" value="2" hoist style="max-width:110px">
+            <sl-select id="replaySpeed" class="select--narrow" label="Speed" value="2" hoist>
               <sl-option value="1">1×</sl-option>
               <sl-option value="2">2×</sl-option>
               <sl-option value="4">4×</sl-option>
             </sl-select>
-            <span id="replayStatus" class="hint" style="margin:0"></span>
+            <span id="replayStatus" class="hint hint--flush"></span>
           </div>
           <div class="map-wrap">
             <canvas id="trackMap" width="900" height="600"></canvas>
@@ -211,15 +297,15 @@
         <section class="card reveal card-wide">
           <h2><span class="tick"><span>05</span></span>Head-to-head</h2>
           <p class="hint">Pick any two analyzed drivers: per-corner speed deltas across the whole lap, fought out on the duel map.</p>
-          <div class="controls-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,220px))">
+          <div class="controls-grid controls-grid--duel">
             <sl-select id="h2hA" label="Driver A" hoist></sl-select>
             <sl-select id="h2hB" label="Driver B" hoist></sl-select>
           </div>
-          <div class="map-wrap" style="margin-top:12px">
+          <div class="map-wrap map-wrap--spaced">
             <canvas id="h2hMap" width="900" height="420"></canvas>
           </div>
           <div id="h2hLegend" class="legend"></div>
-          <div id="h2hResult" style="margin-top:12px"></div>
+          <div id="h2hResult" class="h2h-result"></div>
         </section>
       </sl-tab-panel>
 
@@ -256,10 +342,10 @@
           <h2><span class="tick"><span>10</span></span>Weekend view — how corner dominance shifted</h2>
           <p class="hint">Lite analysis (top 5 per session) of <strong>every session of this Grand Prix weekend</strong>:
             which team owned each corner, session by session. Takes a while — progress is shown above.</p>
-          <div class="controls-row" style="margin-top:0">
+          <div class="controls-row controls-row--flush">
             <sl-button id="weekendBtn" variant="primary">Analyze full weekend</sl-button>
           </div>
-          <div id="weekendResult" style="margin-top:12px"></div>
+          <div id="weekendResult" class="weekend-result"></div>
         </section>
       </sl-tab-panel>
 
@@ -301,7 +387,7 @@
       <strong>Data:</strong>
       <a href="https://openf1.org" target="_blank" rel="noopener noreferrer">OpenF1 API</a>
       <span class="footer-sep">·</span>
-      Unofficial fan project, not affiliated with Formula 1 or Ferrari
+      Unofficial tool, not affiliated with Formula 1 or OpenF1
     </p>
     <a class="footer-top" href="#hero" data-scroll="#hero">Back to top ↑</a>
   </div>
@@ -335,12 +421,11 @@
 <button id="bgToggle" class="bg-toggle" type="button" aria-pressed="true">Background: On</button>
 
 <!-- ===================== existing self-hosted libraries + app =====================
-     UI: parser-blocking vendor scripts deferred so first paint is never stuck
-     behind the 1.5 MB of grid/chart code (used only after Analyze runs).
-     Execution order is preserved (defer runs in document order) and everything
-     is defined before DOMContentLoaded, when app.js init() runs. -->
-<script defer src="vendor/tabulator.min.js"></script>
-<script defer src="vendor/echarts.min.js"></script>
+     UI: the two heavy libraries are NOT in the document at all any more. app.js
+     loads Tabulator the first time a grid is built (after Analyze) and ECharts
+     the first time a speed trace is drawn, from the same vendored files under
+     /vendor/ — no CDN, and no 1.5 MB paid by a visitor who never runs an
+     analysis. Shoelace still loads its components on demand by itself. -->
 <script type="module" src="vendor/shoelace/shoelace-autoloader.js" data-shoelace="/vendor/shoelace"></script>
 <script>
 // Boot check: if any UI library failed to load (blocked CDN/file missing),
@@ -353,8 +438,10 @@ window.addEventListener("DOMContentLoaded", function () {
           !customElements.get("sl-select") ||
           !customElements.get("sl-button") ||
           !customElements.get("sl-tab-group")) missing.push("controls (Shoelace)");
-      if (typeof Tabulator === "undefined") missing.push("data grids (Tabulator)");
-      if (typeof echarts === "undefined") missing.push("charts (ECharts)");
+      // Data grids (Tabulator) and charts (ECharts) are no longer loaded up
+      // front: app.js fetches each one the first time an analysis needs it, so
+      // their absence here says nothing. Two thirds of the old 1.5 MB vendor
+      // payload is now only paid for by a visitor who runs an analysis.
     } catch (e) { missing.push("startup check (" + e.message + ")"); }
     if (missing.length) {
       var box = document.getElementById("errorBox");
@@ -379,5 +466,12 @@ window.addEventListener("DOMContentLoaded", function () {
      Native scrolling + IntersectionObserver + tiny vanilla JS do the rest.
      Remaining script is local, deferred, and loads nothing unused. -->
 <script defer src="animations.js"></script>
+
+<!-- ===================== DESIGN-SYSTEM COMPONENT LAYER =====================
+     Loaded last: it upgrades markup app.js/animations.js already produced (nav,
+     result summary, footer, components surface) and never owns data. Class-only;
+     `style-src 'self'` forbids a style attribute, so runtime geometry travels as
+     CSS custom properties through CSSOM. -->
+<script defer src="components.js"></script>
 </body>
 </html>

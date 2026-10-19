@@ -3,7 +3,8 @@
 # This file exists to say that in the site's own words. Without it the platform
 # answers /robots.txt with its own injected boilerplate, which reads as this
 # site's policy while saying nothing about it (measured on this deployment before
-# it was added).
+# it was added). Preview deployment hosts are excluded separately by X-Robots-Tag
+# in _headers; robots rules here apply to this canonical production host.
 #
 # The Sitemap line names the deployed host, which is this repository's Pages
 # project — the same address the README links to and the manifest names.

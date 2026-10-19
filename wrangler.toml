@@ -25,3 +25,27 @@
 name = "f1-practice-session-analysis"
 pages_build_output_dir = "public"
 compatibility_date = "2026-10-01"
+
+# There is still no Worker and no bundling, but there IS a Pages Function now:
+# `functions/[[path]].js` catches every request and hands `/api/feedback` to
+# `functions/api/feedback.js`; everything else goes to `env.ASSETS`. Pages
+# compiles that directory as part of the deploy, so `wrangler pages deploy
+# public` remains the whole publish step and `wrangler deploy` is still not a
+# command this repository has any use for.
+
+# The shared feedback namespace. /api/feedback answers 503 until this binding
+# exists, and that is deliberate: a route that silently accepted feedback it
+# could not store would read as a working form and lose every message. The same
+# namespace is bound to the sibling RBI project, so this block is uncommented
+# with the id that namespace already has:
+#
+#   npx wrangler kv namespace create site-feedback   (only for the first site)
+#   workers & pages -> f1-practice-session-analysis -> Settings -> Functions ->
+#     KV namespace bindings -> SITE_FEEDBACK -> site-feedback
+#
+# No id is committed before the dashboard binding exists — a placeholder id
+# fails the deploy instead of the binding. Pages reads bindings from the
+# dashboard, not from this file, which is why this is a note and not a table.
+# [[kv_namespaces]]
+# binding = "SITE_FEEDBACK"
+# id = "<id of the shared site-feedback namespace>"
