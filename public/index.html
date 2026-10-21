@@ -32,9 +32,12 @@
       Sprint and Race. Only the session you select is analyzed.
     </p>
     <div class="controls-grid">
-      <sl-select id="yearSelect" label="Year" placeholder="Loading…" max-options-visible="6" hoist></sl-select>
-      <sl-select id="gpSelect" label="Grand Prix" placeholder="Pick a year first" max-options-visible="6" hoist disabled></sl-select>
-      <sl-select id="sessionSelect" label="Session" placeholder="Pick a Grand Prix first" max-options-visible="6" hoist disabled></sl-select>
+      <sl-select id="yearSelect" label="Year" placeholder="Loading…" max-options-visible="6" hoist
+                 data-glide data-glide-size="lg" data-glide-caption="Year" data-glide-menu-width="200"></sl-select>
+      <sl-select id="gpSelect" label="Grand Prix" placeholder="Pick a year first" max-options-visible="6" hoist disabled
+                 data-glide data-glide-size="lg" data-glide-caption="Grand Prix" data-glide-menu-width="300"></sl-select>
+      <sl-select id="sessionSelect" label="Session" placeholder="Pick a Grand Prix first" max-options-visible="6" hoist disabled
+                 data-glide data-glide-size="lg" data-glide-caption="Session" data-glide-menu-width="260"></sl-select>
       <sl-select id="driverLimitSelect" label="Drivers to analyze" value="10" hoist
                  data-glide data-glide-size="lg" data-glide-caption="Drivers to analyze" data-glide-menu-width="230">
         <sl-option value="99">All drivers</sl-option>
@@ -86,7 +89,8 @@
             Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
           <div class="controls-row" style="margin:0 0 10px">
             <sl-button id="replayBtn" variant="default">▶ Replay best laps</sl-button>
-            <sl-select id="replaySpeed" label="Speed" value="2" hoist style="max-width:110px">
+            <sl-select id="replaySpeed" label="Speed" value="2" hoist style="max-width:110px"
+                       data-glide data-glide-menu-width="140" data-glide-label="Replay speed">
               <sl-option value="1">1×</sl-option>
               <sl-option value="2">2×</sl-option>
               <sl-option value="4">4×</sl-option>
@@ -114,8 +118,10 @@
           <h2><span class="tick"><span>05</span></span>Head-to-head</h2>
           <p class="hint">Pick any two analyzed drivers: per-corner speed deltas across the whole lap, fought out on the duel map.</p>
           <div class="controls-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,220px))">
-            <sl-select id="h2hA" label="Driver A" hoist></sl-select>
-            <sl-select id="h2hB" label="Driver B" hoist></sl-select>
+            <sl-select id="h2hA" label="Driver A" hoist
+                       data-glide data-glide-size="lg" data-glide-caption="Driver A" data-glide-menu-width="220"></sl-select>
+            <sl-select id="h2hB" label="Driver B" hoist
+                       data-glide data-glide-size="lg" data-glide-caption="Driver B" data-glide-menu-width="220"></sl-select>
           </div>
           <div class="map-wrap" style="margin-top:12px">
             <canvas id="h2hMap" width="900" height="420"></canvas>

@@ -327,3 +327,16 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   font-family: var(--font-b);
   font-size: 13.5px;
 }
+
+/* The replay-speed picker shares a row with the replay button, so its chip
+   keeps the button's height and hugs its own label instead of stretching. */
+.controls-row .glide-select {
+  width: auto;
+  max-width: 140px;
+}
+
+.controls-row .glide-select .glide-select__trigger {
+  width: auto;
+  min-height: 40px;
+  padding: 0 12px;
+}
