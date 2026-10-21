@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="vendor/shoelace/themes/dark.css" />
-<link rel="stylesheet" href="vendor/tabulator.min.css" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="vendor/tabulator.min.css" />    <link rel="stylesheet" href="glide-select.css" />
+    <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <header class="topbar">
@@ -35,7 +35,8 @@
       <sl-select id="yearSelect" label="Year" placeholder="Loading…" max-options-visible="6" hoist></sl-select>
       <sl-select id="gpSelect" label="Grand Prix" placeholder="Pick a year first" max-options-visible="6" hoist disabled></sl-select>
       <sl-select id="sessionSelect" label="Session" placeholder="Pick a Grand Prix first" max-options-visible="6" hoist disabled></sl-select>
-      <sl-select id="driverLimitSelect" label="Drivers to analyze" value="10" hoist>
+      <sl-select id="driverLimitSelect" label="Drivers to analyze" value="10" hoist
+                 data-glide data-glide-size="lg" data-glide-caption="Drivers to analyze" data-glide-menu-width="230">
         <sl-option value="99">All drivers</sl-option>
         <sl-option value="10">Top 10 (fastest laps)</sl-option>
         <sl-option value="5">Top 5 (fastest laps)</sl-option>
@@ -225,5 +226,6 @@ window.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 <script src="app.js"></script>
+<script src="glide-select.js"></script>
 </body>
 </html>

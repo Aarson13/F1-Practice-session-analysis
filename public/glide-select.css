@@ -1,0 +1,342 @@
+/* GlideSelect — vanilla port of React Bits' GlideSelect.
+ *
+ * Theme it from the host stylesheet by setting the custom properties on
+ * `.glide-select` (or a wrapper, or `:root`):
+ *
+ *   --gs-surface    chip + menu background
+ *   --gs-highlight  hovered row / glide pill
+ *   --gs-text       label colour
+ *   --gs-accent     check mark colour
+ *   --gs-focus      focus ring (defaults to --gs-accent)
+ *   --gs-radius     menu corner radius
+ *   --gs-menu-w     menu min-width
+ *
+ * The chip height, row height and font size come from data-glide-size and are
+ * written as --gs-chip / --gs-row / --gs-font by the script.
+ */
+.glide-select {
+  --gs-accent: #f5f5f5;
+  --gs-surface: #27272a;
+  --gs-highlight: #3f3f46;
+  --gs-text: #f5f5f5;
+  --gs-radius: 10px;
+  --gs-inner-radius: 6px;
+  --gs-chip: 32px;
+  --gs-row: 30px;
+  --gs-font: 13px;
+  --gs-menu-w: 176px;
+  --gs-pop: 180ms;
+  --gs-pop-out: 120ms;
+  --gs-glide: 220ms;
+  --gs-origin: top left;
+  --gs-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  font-family: inherit;
+  font-size: var(--gs-font);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.glide-select[hidden] {
+  display: none;
+}
+
+/* The open root lifts its whole stacking context, so a menu that overflows a
+ * card is not painted under the next row of the card. */
+.glide-select[data-open] {
+  z-index: 60;
+}
+
+.glide-select[data-disabled] {
+  opacity: 0.5;
+}
+
+/* Replacement for the label a hidden native control used to carry; the host
+ * page decides its typography. */
+.glide-select__caption {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--gs-text);
+  opacity: 0.7;
+  font-size: calc(var(--gs-font) - 1px);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* The original <select> stays in the DOM (its value is what the page reads and
+ * submits) but leaves the flow so the chip sits where it used to. */
+.glide-select-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+}
+
+.glide-select__trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  max-width: 100%;
+  height: var(--gs-chip);
+  margin: 0;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: var(--gs-inner-radius);
+  background: var(--gs-surface);
+  color: var(--gs-text);
+  font-family: inherit;
+  font-size: var(--gs-font);
+  font-weight: 500;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 100ms ease, transform 160ms var(--gs-ease-out);
+}
+
+.glide-select__trigger:focus-visible {
+  outline: 2px solid var(--gs-focus, var(--gs-accent));
+  outline-offset: 2px;
+}
+
+/* The script marks a pointer-opened chip; the browser reports that focus as
+ * :focus-visible, so the ring is suppressed until a key is pressed. The
+ * !important is deliberate: host sheets commonly style `button:focus-visible`
+ * with an id in the selector, which would otherwise re-ring the pointer case. */
+.glide-select[data-pointer-focus] .glide-select__trigger:focus-visible {
+  outline: none !important;
+}
+
+.glide-select__trigger:disabled {
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .glide-select__trigger:not(:disabled):hover {
+    background: var(--gs-highlight);
+  }
+}
+
+.glide-select__trigger[aria-expanded='true'] {
+  background: var(--gs-highlight);
+}
+
+.glide-select__trigger:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.glide-select__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.glide-select__label[data-empty] {
+  opacity: 0.6;
+}
+
+.glide-select[data-swap] .glide-select__label {
+  animation: gs-swap 160ms ease;
+}
+
+@keyframes gs-swap {
+  from {
+    opacity: 0.6;
+    filter: blur(2px);
+  }
+}
+
+.glide-select__chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--gs-text);
+  opacity: 0.55;
+  transition: transform 200ms var(--gs-ease-out);
+}
+
+.glide-select__chevron svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.glide-select__trigger[aria-expanded='true'] .glide-select__chevron {
+  transform: rotate(180deg);
+}
+
+.glide-select__menu {
+  position: absolute;
+  z-index: 60;
+  box-sizing: border-box;
+  width: var(--gs-menu-w);
+  min-width: 100%;
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border-radius: var(--gs-radius);
+  background: var(--gs-surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform-origin: var(--gs-origin);
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity var(--gs-pop) var(--gs-ease-out), transform var(--gs-pop) var(--gs-ease-out);
+}
+
+.glide-select__menu[data-state='open'] {
+  opacity: 1;
+  transform: none;
+}
+
+.glide-select__menu[data-state='closed'] {
+  transition-duration: var(--gs-pop-out);
+  pointer-events: none;
+}
+
+.glide-select__menu[data-side='bottom'] {
+  top: calc(100% + 6px);
+}
+
+.glide-select__menu[data-side='top'] {
+  bottom: calc(100% + 6px);
+}
+
+.glide-select__menu[data-align='left'] {
+  left: 0;
+}
+
+.glide-select__menu[data-align='right'] {
+  right: 0;
+}
+
+.glide-select__list {
+  position: relative;
+  display: grid;
+  gap: 1px;
+  touch-action: none;
+}
+
+.glide-select__pill {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--gs-row);
+  border-radius: var(--gs-inner-radius);
+  background: var(--gs-highlight);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--gs-glide) var(--gs-ease-out), opacity 150ms ease;
+}
+
+.glide-select__option {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: var(--gs-row);
+  padding: 0 8px 0 10px;
+  border-radius: var(--gs-inner-radius);
+  color: var(--gs-text);
+  font-size: var(--gs-font);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms ease;
+}
+
+.glide-select__option[aria-selected='true'] {
+  background: var(--gs-highlight);
+}
+
+.glide-select__list[data-live] .glide-select__option[aria-selected='true'] {
+  background: transparent;
+}
+
+.glide-select__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.glide-select__tag {
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--gs-text);
+  font-size: calc(var(--gs-font) - 2px);
+  opacity: 0.55;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.glide-select__check {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--gs-accent);
+  visibility: hidden;
+}
+
+.glide-select__check[data-on] {
+  visibility: visible;
+}
+
+.glide-select__check svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glide-select__menu {
+    transform: none !important;
+    transition: opacity var(--gs-pop) ease;
+  }
+
+  .glide-select__menu[data-state='closed'] {
+    transition-duration: var(--gs-pop-out);
+  }
+
+  .glide-select__pill {
+    transition: opacity 150ms ease;
+  }
+
+  .glide-select__chevron {
+    transition: none;
+  }
+
+  .glide-select__trigger {
+    transition: background-color 100ms ease;
+  }
+
+  .glide-select__trigger:not(:disabled):active {
+    transform: none;
+  }
+
+  .glide-select[data-swap] .glide-select__label {
+    animation: none;
+  }
+}

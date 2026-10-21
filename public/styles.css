@@ -280,3 +280,50 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 }
+
+/* --- GlideSelect -----------------------------------------------------------
+   "Drivers to analyze" is a chip opening a gliding list now. The Shoelace
+   <sl-select> it replaced stays in the DOM, hidden, because app.js reads its
+   value and listens for sl-change; only the surface changed. ---------------- */
+.glide-select {
+  --gs-surface: #0a0e18;
+  --gs-highlight: #17203a;
+  --gs-text: var(--text);
+  --gs-accent: var(--accent);
+  --gs-radius: 12px;
+  --gs-inner-radius: 8px;
+  --gs-menu-w: 230px;
+}
+
+.controls-grid > .glide-select {
+  display: block;
+  width: 100%;
+}
+
+.glide-select__caption {
+  color: var(--muted);
+  font-family: var(--font-b);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.glide-select .glide-select__trigger {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  font-family: var(--font-b);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.glide-select__menu {
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glide-select__option {
+  font-family: var(--font-b);
+  font-size: 13.5px;
+}
