@@ -357,6 +357,31 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   padding: 0 12px;
 }
 
+/* Replay speed is a segmented track (Rubber Segment) rather than a select: the
+   red thumb stretches from 1× to 4× and lands on the rate that is playing. */
+.speed-label {
+  font-family: var(--font-b);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.speed-track[data-rs-track] {
+  --rs-track: #0a0e16;
+  --rs-thumb: var(--accent);
+  --rs-text: var(--muted);
+  --rs-active-text: #fff;
+  --rs-focus: var(--accent-hi);
+  border: 1px solid var(--line);
+}
+
+.speed-track .rubber-segment__chip {
+  font-family: var(--font-b);
+  font-weight: 600;
+}
+
 /* ---------------- site footer ----------------
    Kept outside the app's result state so the trust links are always present,
    including before a session has been analyzed. ---------------------------- */

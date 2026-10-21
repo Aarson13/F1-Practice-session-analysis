@@ -275,6 +275,7 @@ async function init() {
   $("copyLinkBtn").addEventListener("click", copyShareLink);
   $("weekendBtn").addEventListener("click", runWeekend);
   $("replayBtn").addEventListener("click", toggleReplay);
+  wireReplaySpeed();
   $("trackMap").addEventListener("click", onTrackClick);
   $("h2hA").addEventListener("sl-change", () => { renderH2H().catch((e) => console.warn(e)); });
   $("h2hB").addEventListener("sl-change", () => { renderH2H().catch((e) => console.warn(e)); });
@@ -1883,6 +1884,25 @@ function binAtTime(cum, t) {
   while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < t) lo = mid + 1; else hi = mid; }
   return lo;
 }
+// The replay rate is a three-way choice, so it is a segmented track instead of
+// a select: the click moves the hidden input that startReplay() reads and lets
+// Rubber Segment see the new seat through the aria-pressed state.
+function wireReplaySpeed() {
+  const group = document.getElementById("replaySpeedSeg");
+  const input = document.getElementById("replaySpeed");
+  if (!group || !input) return;
+  group.addEventListener("click", (event) => {
+    const chip = event.target.closest(".speed-chip");
+    if (!chip) return;
+    input.value = chip.dataset.speed;
+    for (const other of group.querySelectorAll(".speed-chip")) {
+      const on = other === chip;
+      other.classList.toggle("on", on);
+      other.setAttribute("aria-pressed", String(on));
+    }
+  });
+}
+
 function toggleReplay() {
   replay.on ? stopReplay() : startReplay();
 }

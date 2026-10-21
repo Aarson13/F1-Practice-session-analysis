@@ -1,0 +1,103 @@
+/* Rubber Segment — vanilla port of React Bits' Rubber Segment.
+ *
+ * The thumb is a single absolutely-positioned layer behind the chips; its left
+ * edge and width are written as --rs-x and --rs-w by the script. Chips keep
+ * whatever skin the host gives them, which is what lets a dashboard adopt the
+ * component without restyling its segmented control.
+ *
+ * Tokens, set on the group or an ancestor:
+ *   --rs-thumb        thumb fill            (default #fafafa)
+ *   --rs-thumb-radius corner radius of the thumb (from data-rs-radius - inset)
+ *   --rs-h / --rs-font / --rs-pad / --rs-min
+ *                     size preset, written by the script from data-rs-size
+ *   --rs-inset        gap between track edge and thumb
+ *
+ * Add data-rs-track to paint the control's own track (background, padding,
+ * radius); without it the group is only made a positioning context.
+ */
+.rubber-segment {
+  --rs-thumb: #fafafa;
+  --rs-thumb-radius: 7px;
+  --rs-inset: 3px;
+  --rs-h: 36px;
+  --rs-font: 13px;
+  --rs-pad: 14px;
+  --rs-min: 44px;
+  --rs-x: 0px;
+  --rs-w: 0px;
+  position: relative;
+  isolation: isolate;
+}
+
+.rubber-segment[data-rs-tone='light'] {
+  --rs-thumb: #18181b;
+}
+
+.rubber-segment[data-rs-track] {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--rs-h);
+  padding: var(--rs-inset);
+  border-radius: var(--rs-radius, 10px);
+  background: var(--rs-track, #27272a);
+}
+
+/* The thumb never receives the pointer: the chips above it stay clickable. */
+.rubber-segment__thumb {
+  position: absolute;
+  z-index: 0;
+  top: var(--rs-top, var(--rs-inset));
+  height: var(--rs-thigh, calc(100% - 2 * var(--rs-inset)));
+  left: 0;
+  width: var(--rs-w);
+  transform: translateX(var(--rs-x));
+  border-radius: var(--rs-thumb-radius);
+  background: var(--rs-thumb);
+  pointer-events: none;
+  will-change: transform, width;
+}
+
+.rubber-segment__chip {
+  position: relative;
+  z-index: 1;
+  min-width: var(--rs-min);
+  min-height: calc(var(--rs-h) - 2 * var(--rs-inset));
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--rs-font);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 0 var(--rs-pad);
+  border-radius: var(--rs-thumb-radius);
+  transition: color 180ms ease;
+}
+
+.rubber-segment__chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rubber-segment__chip:focus-visible {
+  outline: 2px solid var(--rs-focus, currentColor);
+  outline-offset: 2px;
+}
+
+/* A track carries the inverted text itself; bare adoption leaves the host's
+ * chips alone unless it opts into the tone. */
+.rubber-segment[data-rs-track] .rubber-segment__chip {
+  color: var(--rs-text, #a1a1aa);
+}
+
+.rubber-segment[data-rs-track] .rubber-segment__chip[data-on='true'] {
+  color: var(--rs-active-text, #18181b);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rubber-segment__chip {
+    transition-duration: 0.01ms;
+  }
+}
