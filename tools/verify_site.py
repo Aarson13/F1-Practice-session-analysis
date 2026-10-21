@@ -22,6 +22,18 @@ PUB = os.path.join(REPO, "public")
 RESULTS = []
 
 
+def open_page(pg, url):
+    """Open a page and wait for the app, not for the network to fall quiet.
+
+    The app polls the OpenF1 API, so "networkidle" is a state it never
+    reaches: the wait timed out on pages that had already rendered. The
+    element below is the app's own action button - when it is there, the
+    shell has rendered and the page is ready to be driven, which is a
+    STRONGER signal than a network that happens to be quiet.
+    """
+    pg.goto(url, wait_until="domcontentloaded", timeout=30000)
+    pg.wait_for_selector("#analyzeBtn", timeout=30000)
+
 def check(name, ok, detail=""):
     RESULTS.append((name, bool(ok), str(detail)))
     print(f"[{'PASS' if ok else 'FAIL'}] {name} {detail}")
@@ -60,7 +72,7 @@ def main():
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         pg.on("console", lambda m: print("CONSOLE-WARN:", m.text[:160])
               if m.type == "warning" and "tab refresh failed" in m.text else None)
-        pg.goto(base, wait_until="networkidle")
+        open_page(pg, base)
         pg.wait_for_timeout(2500)
 
         ticks = pg.eval_on_selector_all(".card .tick > span", "els => els.map(e => e.textContent.trim())")
@@ -254,7 +266,7 @@ def main():
         ctx0 = b.new_context(viewport={"width": 1280, "height": 800},
                              permissions=["clipboard-read", "clipboard-write"])
         pg2 = ctx0.new_page()
-        pg2.goto(pg.url, wait_until="networkidle")
+        open_page(pg2, pg.url)
         pg2.wait_for_timeout(2000)
         pg2.click("#copyLinkBtn")
         pg2.wait_for_timeout(800)
@@ -268,7 +280,7 @@ def main():
         m = b.new_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
         merrs = []
         m.on("pageerror", lambda e: merrs.append(str(e)))
-        m.goto(base, wait_until="networkidle")
+        open_page(m, base)
         m.wait_for_timeout(2500)
         mv = m.evaluate("""() => { const v = document.getElementById('bgVideo');
             return { playing: v.readyState >= 2 && !v.paused }; }""")
@@ -288,7 +300,7 @@ def main():
 
         # ---- reduced motion: poster only ----
         r = b.new_page(viewport={"width": 1280, "height": 800}, reduced_motion="reduce")
-        r.goto(base, wait_until="networkidle")
+        open_page(r, base)
         r.wait_for_timeout(2000)
         check("reduced-motion shows poster only (video removed)",
               r.evaluate("!document.querySelector('.bg-video-wrap video') && "
@@ -297,7 +309,7 @@ def main():
 
         # ---- 5s scroll perf: fps + longtasks ----
         p = b.new_page(viewport={"width": 1280, "height": 800})
-        p.goto(base, wait_until="networkidle")
+        open_page(p, base)
         p.wait_for_timeout(1500)
         perf = p.evaluate("""() => new Promise((resolve) => {
             const tasks = [];

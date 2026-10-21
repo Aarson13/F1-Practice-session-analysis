@@ -848,3 +848,9 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
    would sit under the nav and the click would land on the nav instead of
    the tab. The scroll margin leaves the nav's height clear. */
 #resultTabs, #resultTabs sl-tab { scroll-margin-top: calc(var(--nav-h) + 24px); }
+/* The navbar is FIXED, so anything scrolled to the top of the viewport goes
+   under it - an anchor link lands under the nav, and a click on a target
+   that was scrolled to lands on the nav instead. The scroll padding leaves
+   the nav's height clear for both. */
+html { scroll-padding-top: calc(var(--nav-h) + 18px); }
+
