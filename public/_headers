@@ -1,7 +1,5 @@
-# CACHING. Read this before adding a file to public/.
-#
-# `no-store`, not `no-cache`: the app ships often and filenames are unversioned,
-# so this was always meant to be "revalidate every time" — and `no-cache` did not
+# No store, not no-cache: the app ships often and filenames are unversioned, so
+# this was always meant to be "revalidate every time" — and `no-cache` did not
 # mean that on this host.
 #
 # Measured after `README.md` and `.assetsignore` stopped being published (the
@@ -14,121 +12,7 @@
 # longer has — which is exactly the case an ignore file cannot cover.
 #
 # `no-store` removes that: nothing is stored, so nothing can outlive the
-# deployment that served it.
-#
-# One thing this file CANNOT do, and it is why the rules below name each path
-# instead of leaning on the catch-all: Cloudflare joins the Cache-Control of
-# every matching rule into one comma-separated value, and a `no-store` in that
-# list wins. A `/*` rule carrying `no-store` therefore cancels every long-cache
-# rule under it — measured locally through `wrangler pages dev`: with `/*` set to
-# no-store, `/assets/bg-poster.jpg` was served
-# `public, max-age=31536000, immutable, no-store`. The immutable rule was dead,
-# and 700 KB of video was re-downloaded by every visitor on every visit. So the
-# catch-all carries the security headers and NO Cache-Control, and each path that
-# needs a cache policy states it here. Same shape as cents' _headers.
-#
-# If you add a file to public/, give it a rule: an unmatched path falls back to
-# the platform's own 7-day cache (s-maxage=604800, measured above), which is the
-# behaviour this section exists to avoid.
-#
-# Preview deployments use an extra hostname label, e.g. <branch>.<project>.pages.dev.
-# Keep those previews out of search without matching the production
-# <project>.pages.dev hostname. Cloudflare also supplies noindex by default on
-# preview deployments; this explicit host pattern keeps the policy visible here.
-https://:version.:project.pages.dev/*
-  X-Robots-Tag: noindex
-
-
-# The app itself: unversioned filenames, replaced on every deploy, so nothing may
-# outlive the deployment that served it.
-/
-  Cache-Control: no-store
-/index.html
-  Cache-Control: no-store
-/styles.css
-  Cache-Control: no-store
-/app.js
-  Cache-Control: no-store
-/animations.js
-  Cache-Control: no-store
-/components.js
-  Cache-Control: no-store
-/components.css
-  Cache-Control: no-store
-/sw.js
-  Cache-Control: no-store
-/robots.txt
-  Cache-Control: no-store
-/sitemap.xml
-  Cache-Control: no-store
-/404.html
-  Cache-Control: no-store
-
-# The vendored libraries (echarts 326 KB, tabulator, the Shoelace chunks) are
-# ~1.5 MB and change a few times a year, not per deploy — the one directory that
-# should not be re-downloaded by every visitor on every visit. Not `immutable`:
-# the filenames carry no content hash, so a replaced library has to be able to
-# reach a returning visitor, and an immutable promise on a stable URL cannot be
-# revoked. A week plus stale-while-revalidate is the compromise the portfolio's
-# font rule already makes.
-/vendor/*
-  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
-
-# The self-hosted webfonts and the stylesheet that declares them — see
-# tools/self-host-fonts.mjs and public/fonts.css. A week plus
-# stale-while-revalidate, not `immutable`, for the same reason /vendor/* isn't:
-# the filenames carry no content hash, so a replaced font has to be able to reach
-# a returning visitor, and an immutable promise on a stable URL cannot be revoked.
-/fonts/*
-  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
-/fonts.css
-  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
-
-# UI: the background video and poster are large, rarely change, and live under
-# /assets/ — they get a long immutable cache. If a video file is ever replaced
-# with different content, rename it (cache-bust) instead of relying on expiry.
-/assets/*
-  Cache-Control: public, max-age=31536000, immutable
-
-# EVERYTHING ELSE: the security headers, and deliberately no Cache-Control (see
-# the note at the top of this file).
+# deployment that served it. It does not evict entries already in the cache;
+# those expire on their own `s-maxage`.
 /*
-  # The CSP this site did not have. On 15 Oct 2026 it was the one host in this
-  # collection sending none, while every sibling sent a strict one. The two
-  # remaining inline <script> blocks (the reduced-motion bootstrap and the UI
-  # boot check) are pinned by hash — run `python tools/check_csp_hashes.py`
-  # after editing either one, because a missing hash is a page that renders and
-  # quietly half-works.
-  #
-  #   script-src   'self' + those hashes; no CDN at all. The libraries this app
-  #                uses (ECharts, Tabulator, Shoelace) are vendored under
-  #                /vendor/, which is what makes pinning possible — and ECharts
-  #                and Tabulator are no longer even in the document: app.js
-  #                injects each one from /vendor/ the first time a grid or a
-  #                trace needs it. Still 'self', so nothing changes here.
-  #   style-src    'self'. The nine inline style attributes this policy used to
-  #                allow are gone: the markup ones are classes in styles.css and
-  #                the twenty-one app.js used to generate moved to classes plus
-  #                `data-colour` swatches painted through CSSOM (which the policy
-  #                does not govern). No `'unsafe-inline'`, and no
-  #                fonts.googleapis.com: the font stylesheet is /fonts.css,
-  #                served from this origin.
-  #   font-src     'self'. The fonts were fetched from fonts.gstatic.com until
-  #                16 Oct 2026, which is why this site's policy was the widest in
-  #                the collection; tools/self-host-fonts.mjs vendors them into
-  #                public/fonts/ now and writes public/fonts.css, so no third
-  #                party is on the critical path and no third-party origin is
-  #                named here.
-  #   connect-src  the live session data from api.openf1.org, plus 'self' and
-  #                data:. The data: is not decoration: the vendored components
-  #                fetch their own icons as `data:image/svg+xml,…` URLs, and with
-  #                it out the console filled with "Refused to connect to
-  #                'data:image/svg+xml,…'" and the controls lost their chevrons
-  #                and checkmarks. Measured in the browser, not assumed. 'self'
-  #                also covers the feedback box's POST /api/feedback.
-  #   media-src    the background video and poster are served from here.
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-89facNSh/0DYdZRfEmBETpAd0Ij4FAmOzeWknrboyR0=' 'sha256-KDqUxTaN6UU6MJUnCKizKwKcKNAG8cbj58j+yx+u684='; style-src 'self'; font-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self' https://api.openf1.org data:; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'
-  # Paired with frame-ancestors 'none' for engines that predate it.
-  X-Frame-Options: DENY
-  X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
+  Cache-Control: no-store

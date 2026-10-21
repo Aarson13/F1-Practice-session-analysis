@@ -3,194 +3,29 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>F1 Session Analyzer | Corner Speed &amp; Telemetry Tool</title>
-<meta name="description" content="Compare F1 corner speeds by driver and team with live OpenF1 telemetry. Explore turn-by-turn analysis, lap traces, sector times, and race pace." />
-<link rel="canonical" href="https://f1-practice-session-analysis.pages.dev/" />
-<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
-<meta name="theme-color" content="#0a0a0c" />
-<meta property="og:type" content="website" />
-<meta property="og:site_name" content="F1 Session Analyzer" />
-<meta property="og:title" content="F1 Session Analyzer | Corner Speed &amp; Telemetry Tool" />
-<meta property="og:description" content="Compare F1 corner speeds by driver and team with live OpenF1 telemetry. Explore turn-by-turn analysis, lap traces, sectors, and race pace." />
-<meta property="og:url" content="https://f1-practice-session-analysis.pages.dev/" />
-<meta property="og:image" content="https://f1-practice-session-analysis.pages.dev/assets/social-card.png" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="F1 Session Analyzer — compare driver and team corner speeds with live telemetry." />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="F1 Session Analyzer | Corner Speed &amp; Telemetry Tool" />
-<meta name="twitter:description" content="Compare F1 corner speeds by driver and team with live OpenF1 telemetry. Explore turn-by-turn analysis, lap traces, sectors, and race pace." />
-<meta name="twitter:image" content="https://f1-practice-session-analysis.pages.dev/assets/social-card.png" />
-<meta name="twitter:image:alt" content="F1 Session Analyzer — compare driver and team corner speeds with live telemetry." />
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "WebSite",
-      "@id": "https://f1-practice-session-analysis.pages.dev/#website",
-      "url": "https://f1-practice-session-analysis.pages.dev/",
-      "name": "F1 Session Analyzer",
-      "inLanguage": "en"
-    },
-    {
-      "@type": "WebApplication",
-      "@id": "https://f1-practice-session-analysis.pages.dev/#application",
-      "name": "F1 Session Analyzer",
-      "url": "https://f1-practice-session-analysis.pages.dev/",
-      "description": "Compare Formula 1 driver and team corner speeds using live OpenF1 telemetry.",
-      "applicationCategory": "DataAnalysis",
-      "operatingSystem": "Web",
-      "isAccessibleForFree": true,
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
-      "creator": {
-        "@id": "https://f1-practice-session-analysis.pages.dev/#creator",
-        "@type": "Person",
-        "name": "Parth Soni",
-        "url": "https://parth-portfolio-wb.pages.dev/"
-      }
-    },
-    {
-      "@type": "Dataset",
-      "@id": "https://f1-practice-session-analysis.pages.dev/#csv-exports",
-      "name": "F1 session analysis CSV exports",
-      "description": "On-demand CSV tables generated in the browser from a selected Formula 1 session analysis. Exportable tables include corner speeds, driver and team comparisons, sectors and speed traps, and race pace when available.",
-      "creator": { "@id": "https://f1-practice-session-analysis.pages.dev/#creator" },
-      "isAccessibleForFree": true,
-      "inLanguage": "en",
-      "variableMeasured": ["Average corner speed", "Driver and team comparisons", "Sector times", "Speed traps", "Race pace and tyre degradation"]
-    }
-  ]
-}
-</script>
-<!-- UI: inline SVG favicon (data: URI, zero extra requests) so browsers never
-     404 on /favicon.ico. Allowed by the CSP (img-src 'self' data:). -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0a0c'/%3E%3Crect x='2' y='2' width='6' height='6' fill='%23f2f2f2'/%3E%3Crect x='8' y='8' width='6' height='6' fill='%23f2f2f2'/%3E%3Crect x='8' y='2' width='6' height='6' fill='%23DC0000'/%3E%3Crect x='2' y='8' width='6' height='6' fill='%23DC0000'/%3E%3C/svg%3E" />
-
-<!-- ===================== FONTS =====================
-     UI: Rajdhani 600/700 (headings, numerals) + Inter 400/600 (body) only,
-     display=swap with system fallbacks (see styles.css). Orbitron removed
-     to stay inside the font budget.
-
-     Served from /fonts/ by this site now, not from Google. fonts.css is written
-     by tools/self-host-fonts.mjs from the same fetch that downloads the files;
-     it must come before styles.css so the faces are declared before anything
-     asks for them. Two preconnects and a render-blocking third-party stylesheet
-     are gone with the switch, and so are the two origins the CSP used to carry
-     for them — `font-src 'self'` and a `style-src` with no Google in it, the same
-     shape as every sibling site's policy. -->
-<link rel="stylesheet" href="/fonts.css" />
-
-<!-- PERF: removed Splitting.js CSS (hero title reveal is now a single CSS
-     fade-in; no per-letter JS splitting, no extra request). -->
-<!-- ===================== existing self-hosted UI libraries ===================== -->
+<title>F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis</title>
+<meta name="description" content="Live F1 session analyzer. Pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) and get turn-by-turn driver and team corner analysis. All data is fetched live from the OpenF1 API on page load — nothing is stored." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="vendor/shoelace/themes/dark.css" />
 <link rel="stylesheet" href="vendor/tabulator.min.css" />
 <link rel="stylesheet" href="styles.css" />
-<link rel="stylesheet" href="components.css" />
-
-<!-- Motion bootstrap: hides reveal targets ONLY when motion will actually run,
-     so a blocked CDN / disabled JS can never leave content stuck invisible.
-     animations.js clears the safety timer by setting window.__f1MotionReady. -->
-<script>
-(function () {
-  var reduce = false;
-  try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
-  if (reduce) return;
-  document.documentElement.classList.add("js-motion");
-  setTimeout(function () {
-    if (!window.__f1MotionReady) document.documentElement.classList.remove("js-motion");
-  }, 4000);
-})();
-</script>
 </head>
 <body>
-
-<a class="skip-link" href="#main">Skip to content</a>
-
-<!-- UI: fixed background video wrap (first child of body). Procedural
-     10s night-race loop, generated by tools/make_bg_video.py — no footage,
-     no branding. autoplay + preload="auto" so it loads in parallel and
-     never blocks content; JS (end of body) handles play/pause/toggle. -->
-<div class="bg-video-wrap" aria-hidden="true">
-  <video id="bgVideo" autoplay muted loop playsinline preload="auto" poster="assets/bg-poster.jpg" disablepictureinpicture>
-    <source src="assets/bg.webm" type="video/webm">
-    <source src="assets/bg.mp4" type="video/mp4">
-  </video>
-  <div class="bg-video-overlay"></div>
-</div>
-
-<!-- ===================== SCROLL PROGRESS BAR =====================
-     3px Ferrari-red bar pinned to the very top; scaleX tracks page progress. -->
-<div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
-
-<!-- ===================== STICKY GLASS NAVBAR ===================== -->
-<nav class="navbar" id="navbar" aria-label="Primary">
-  <a class="nav-logo" href="#hero" data-scroll="#hero" aria-label="F1 Analyzer — top of page">
-    <svg class="nav-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
-      <rect x="2" y="4" width="28" height="22" rx="2" fill="#0a0a0c" stroke="#DC0000" stroke-width="1.6"/>
-      <g fill="#f2f2f2">
-        <rect x="4" y="6" width="5" height="5"/><rect x="14" y="6" width="5" height="5"/><rect x="24" y="6" width="5" height="5"/>
-        <rect x="9" y="11" width="5" height="5"/><rect x="19" y="11" width="5" height="5"/>
-        <rect x="4" y="16" width="5" height="5"/><rect x="14" y="16" width="5" height="5"/><rect x="24" y="16" width="5" height="5"/>
-      </g>
-      <path d="M2 29 L30 25" stroke="#DC0000" stroke-width="2" stroke-linecap="round"/>
-    </svg>
-    <span class="nav-title">F1 <em>Analyzer</em></span>
-  </a>
-  <!-- UI: mobile menu button (visible < 768px); toggles .nav-open on the nav. -->
-  <button id="menuBtn" class="menu-btn" type="button" aria-expanded="false" aria-controls="navLinks">Menu</button>
-  <ul class="nav-links" id="navLinks">
-    <li><a class="nav-link" href="#controlsCard" data-scroll="#controlsCard">Session</a></li>
-    <li><a class="nav-link" href="#trackMap" data-tab="track">Track map</a></li>
-    <li><a class="nav-link" href="#cornerGrid" data-tab="corners">Turns</a></li>
-    <li><a class="nav-link" href="#h2hMap" data-tab="duel">Head-to-head</a></li>
-    <li><a class="nav-link" href="#driverGrid" data-tab="drivers">Drivers</a></li>
-    <li><a class="nav-link" href="#teamGrid" data-tab="drivers" data-scroll="#teamGrid">Teams</a></li>
-    <li><a class="nav-link" href="#paceGrid" data-tab="pace">Pace</a></li>
-    <li><a class="nav-link" href="#weekendResult" data-tab="weekend">Weekend</a></li>
-    <li><a class="nav-link" href="#speedChart" data-tab="traces">Traces</a></li>
-  </ul>
-</nav>
-
-<!-- ===================== HERO (new, above section 01) ===================== -->
-<header class="hero" id="hero">
-  <!-- PERF: removed the tsParticles ember layer (a full canvas repainting at
-       60fps behind the hero). Hero keeps a single CSS fade-in on load. -->
-  <div class="hero-inner">
-    <div class="hero-mark" aria-hidden="true">
-      <svg viewBox="0 0 120 120" width="104" height="104" focusable="false">
-        <defs>
-          <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#DC0000"/><stop offset="1" stop-color="#ff2a2a"/>
-          </linearGradient>
-        </defs>
-        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#hg)" stroke-width="2" opacity="0.7"/>
-        <g fill="#f2f2f2">
-          <rect x="30" y="34" width="11" height="11"/><rect x="52" y="34" width="11" height="11"/><rect x="74" y="34" width="11" height="11"/>
-          <rect x="41" y="45" width="11" height="11"/><rect x="63" y="45" width="11" height="11"/>
-          <rect x="30" y="56" width="11" height="11"/><rect x="52" y="56" width="11" height="11"/><rect x="74" y="56" width="11" height="11"/>
-        </g>
-        <path d="M26 92 L94 74" stroke="#DC0000" stroke-width="3" stroke-linecap="round"/>
-        <path d="M30 100 L90 84" stroke="#ff2a2a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-      </svg>
+<header class="topbar">
+  <div class="brand">
+    <span class="flag">🏁</span>
+    <div>
+      <h1>F1 Session <em>Analyzer</em></h1>
+      <p>Turn-by-turn driver &amp; team corner analysis</p>
     </div>
-    <h1 class="hero-title" id="heroTitle">F1 Session <span class="hero-word" id="heroWord" aria-hidden="true">Analyzer</span></h1>
-    <!-- PERF: static subtitle text. The rotating Typed.js subtitle was a
-         non-essential always-on JS effect; one line, zero JS. -->
-    <p class="hero-sub" id="heroSubtitle">Turn-by-turn corner analysis · Live OpenF1 data · Every session. Every corner.</p>
-    <a class="hero-cta" id="startAnalysing" href="#controlsCard" data-scroll="#controlsCard"><span class="cta-label">Start analysing&nbsp;<span aria-hidden="true">↓</span></span></a>
   </div>
-  <div class="speed-lines" aria-hidden="true"></div>
-  <div class="mouse-scroll" aria-hidden="true"><span class="mouse-dot"></span></div>
 </header>
 
-<!-- ===================== DIVIDER (section 01 → results) ===================== -->
-<div class="divider" aria-hidden="true"></div>
-
-<main id="main" tabindex="-1">
+<main>
   <!-- ============ CONTROLS ============ -->
-  <section class="card reveal" id="controlsCard">
+  <section class="card" id="controlsCard">
     <h2><span class="tick"><span>01</span></span>Select session</h2>
     <p class="hint">
       Every session type — Practice 1/2/3, Qualifying, Sprint Qualifying,
@@ -208,41 +43,14 @@
     </div>
     <div class="controls-row">
       <sl-button id="analyzeBtn" variant="primary" disabled>Analyze selected session</sl-button>
-      <!-- The tooltip host is the wrapper, never the sl-button: the engine appends
-           its tip inside the trigger, and a child of a custom element lands in
-           that element's default slot, which would rewrite the button label. -->
-      <span class="f1-tip-host" data-tip="Copies a link that re-opens this exact session with every filter you set.">
-        <sl-button id="copyLinkBtn" variant="default" disabled title="Copy a link that re-opens this exact analysis">🔗 Copy share link</sl-button>
-      </span>
-      <span class="f1-tip-host" data-tip="Clears the analysis and the filters on this device; the session data itself is untouched.">
-        <sl-button id="resetBtn" variant="default">Reset</sl-button>
-      </span>
+      <sl-button id="copyLinkBtn" variant="default" disabled title="Copy a link that re-opens this exact analysis">🔗 Copy share link</sl-button>
+      <sl-button id="resetBtn" variant="default">Reset</sl-button>
     </div>
     <div id="statusBox" class="status" hidden>
       <div class="progress"><div id="progressBar"></div></div>
       <div id="statusText">…</div>
     </div>
     <div id="errorBox" class="error" hidden></div>
-  </section>
-
-  <!-- Crawlable explanatory content: available in the original HTML without
-       waiting for OpenF1, client-side rendering, or opening the results tabs. -->
-  <section class="card seo-content" aria-labelledby="about-heading">
-    <h2 id="about-heading">F1 corner speed analysis, made comparable</h2>
-    <p class="hint">Compare how Formula 1 drivers and teams carry speed through each corner. Choose a Grand Prix session to explore turn-by-turn rankings, head-to-head laps, speed traces, sector times, and race pace—all in one free, browser-based analysis tool.</p>
-    <h3>How this F1 telemetry analysis works</h3>
-    <p class="hint">The analyzer requests session, lap, driver, and car telemetry from the OpenF1 API when you choose an analysis. For each driver, it selects the fastest eligible lap, converts speed samples into distance along the lap, and resamples the lap into 1,000 evenly spaced points so speeds can be compared at the same track position.</p>
-    <p class="hint">Corner apexes come from the circuit data when available; if that geometry cannot be loaded, the tool estimates corners from speed minima. Each corner is evaluated in a small window around its apex (about ±1.2% of lap distance) using average speed. Team corner scores average the analyzed drivers for that team. These are telemetry-based comparisons, not official classifications or claims about overall race performance.</p>
-    <h3>Frequently asked questions</h3>
-    <h4>Which F1 sessions can I analyze?</h4>
-    <p class="hint">Select an available Practice, Qualifying, Sprint, Sprint Shootout or Sprint Qualifying, or Race session. Availability depends on the season and on the sessions published by OpenF1.</p>
-    <h4>Is the corner-speed comparison based on official F1 timing?</h4>
-    <p class="hint">The app uses telemetry and session information served by OpenF1, an independent data API. The comparisons are calculated by this tool and are not official Formula 1 results.</p>
-    <h4>Does the tool save my session data?</h4>
-    <p class="hint">No. Session data is requested live and analyzed in your browser; the app does not store the fetched F1 data. You can export available analysis tables as CSV after an analysis has loaded.</p>
-    <h4>Why might an analysis be slow or incomplete?</h4>
-    <p class="hint">The tool makes live API requests and paces them to respect service limits. Older or incomplete sessions may have missing telemetry, and some results can take longer to load. Try analyzing fewer drivers if requests are slow.</p>
-    <p class="hint">For more about the project, visit <a href="https://parth-portfolio-wb.pages.dev/">Parth Soni’s portfolio</a> or read <a href="https://medium.com/@soni.soni.parth">race reports on Medium</a>.</p>
   </section>
 
   <!-- ============ RESULTS (tabbed) ============ -->
@@ -261,34 +69,28 @@
       <sl-tab slot="nav" panel="guide">Guide</sl-tab>
 
       <sl-tab-panel name="overview">
-        <section class="card reveal" id="summaryCard">
+        <section class="card" id="summaryCard">
           <h2><span class="tick"><span>02</span></span>Session summary</h2>
           <div id="circuitHero" class="circuit-hero" hidden></div>
           <div id="sessionMeta" class="meta"></div>
           <div id="summaryChips" class="chips"></div>
-          <div id="contextStrip" class="chips chips--tight"></div>
-        </section>
-        <section class="card reveal" id="lapDeltaCard">
-          <h2><span class="tick"><span>Δ</span></span>Lap delta by sector</h2>
-          <p class="hint">The second-fastest lap split against the fastest. Point at a sector to read the time gained or lost; the Sectors table has every driver and trap.</p>
-          <div class="hairline-figure" id="f1-lap-delta"></div>
-          <p class="hairline-read" data-hairline-read aria-live="polite">rest</p>
+          <div id="contextStrip" class="chips" style="margin-top:8px"></div>
         </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="track">
-        <section class="card reveal">
+        <section class="card">
           <h2><span class="tick"><span>03</span></span>Track map — who is fastest where</h2>
           <p class="hint">Segments coloured by the <strong>fastest team</strong> in each part of the lap.
             Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
-          <div class="controls-row controls-row--map">
+          <div class="controls-row" style="margin:0 0 10px">
             <sl-button id="replayBtn" variant="default">▶ Replay best laps</sl-button>
-            <sl-select id="replaySpeed" class="select--narrow" label="Speed" value="2" hoist>
+            <sl-select id="replaySpeed" label="Speed" value="2" hoist style="max-width:110px">
               <sl-option value="1">1×</sl-option>
               <sl-option value="2">2×</sl-option>
               <sl-option value="4">4×</sl-option>
             </sl-select>
-            <span id="replayStatus" class="hint hint--flush"></span>
+            <span id="replayStatus" class="hint" style="margin:0"></span>
           </div>
           <div class="map-wrap">
             <canvas id="trackMap" width="900" height="600"></canvas>
@@ -298,7 +100,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="corners">
-        <section class="card reveal card-wide">
+        <section class="card card-wide">
           <div class="card-head"><h2><span class="tick"><span>04</span></span>Turn-by-turn analysis</h2><sl-button id="cornerCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <p class="hint">Each corner window (±1.2% of lap distance around the apex) is ranked by
             <strong>average speed</strong>. Faster through the corner means better. Click a column header to sort.</p>
@@ -307,34 +109,34 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="duel">
-        <section class="card reveal card-wide">
+        <section class="card card-wide">
           <h2><span class="tick"><span>05</span></span>Head-to-head</h2>
           <p class="hint">Pick any two analyzed drivers: per-corner speed deltas across the whole lap, fought out on the duel map.</p>
-          <div class="controls-grid controls-grid--duel">
+          <div class="controls-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,220px))">
             <sl-select id="h2hA" label="Driver A" hoist></sl-select>
             <sl-select id="h2hB" label="Driver B" hoist></sl-select>
           </div>
-          <div class="map-wrap map-wrap--spaced">
+          <div class="map-wrap" style="margin-top:12px">
             <canvas id="h2hMap" width="900" height="420"></canvas>
           </div>
           <div id="h2hLegend" class="legend"></div>
-          <div id="h2hResult" class="h2h-result"></div>
+          <div id="h2hResult" style="margin-top:12px"></div>
         </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="drivers">
-        <section class="card reveal card-wide">
+        <section class="card card-wide">
           <div class="card-head"><h2><span class="tick"><span>06</span></span>Driver analysis</h2><sl-button id="driverCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <div id="driverGrid" class="grid"></div>
         </section>
-        <section class="card reveal card-wide">
+        <section class="card card-wide">
           <div class="card-head"><h2><span class="tick"><span>07</span></span>Team analysis</h2><sl-button id="teamCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <div id="teamGrid" class="grid"></div>
         </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="sectors">
-        <section class="card reveal card-wide">
+        <section class="card card-wide">
           <div class="card-head"><h2><span class="tick"><span>08</span></span>Sectors &amp; speed traps</h2><sl-button id="sectorCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <p class="hint">Sector splits and trap speeds from each driver's best lap (I1/I2 intermediates, ST finish-line trap).</p>
           <div id="sectorGrid" class="grid"></div>
@@ -342,7 +144,7 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="pace">
-        <section class="card reveal card-wide" id="racePaceCard">
+        <section class="card card-wide" id="racePaceCard">
           <div class="card-head"><h2><span class="tick"><span>09</span></span>Race pace &amp; tyre degradation</h2><sl-button id="paceCsvBtn" variant="default" size="small">⬇ CSV</sl-button></div>
           <p class="hint">Stint-average pace and degradation slope (seconds lost per lap, least-squares fit).
             Out-laps and incident laps are excluded.</p>
@@ -351,19 +153,19 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="weekend">
-        <section class="card reveal card-wide">
+        <section class="card card-wide">
           <h2><span class="tick"><span>10</span></span>Weekend view — how corner dominance shifted</h2>
           <p class="hint">Lite analysis (top 5 per session) of <strong>every session of this Grand Prix weekend</strong>:
             which team owned each corner, session by session. Takes a while — progress is shown above.</p>
-          <div class="controls-row controls-row--flush">
+          <div class="controls-row" style="margin-top:0">
             <sl-button id="weekendBtn" variant="primary">Analyze full weekend</sl-button>
           </div>
-          <div id="weekendResult" class="weekend-result"></div>
+          <div id="weekendResult" style="margin-top:12px"></div>
         </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="traces">
-        <section class="card reveal">
+        <section class="card">
           <h2><span class="tick"><span>11</span></span>Speed traces — best laps overlaid</h2>
           <p class="hint">Speed (km/h) against lap progress for each driver's best lap. Click legend entries to toggle drivers; drag to zoom.</p>
           <div id="speedChart" class="chart"></div>
@@ -371,14 +173,14 @@
       </sl-tab-panel>
 
       <sl-tab-panel name="classification">
-        <section class="card reveal card-wide">
+        <section class="card card-wide">
           <h2><span class="tick"><span>12</span></span>Official session classification</h2>
           <div id="resultGrid" class="grid"></div>
         </section>
       </sl-tab-panel>
 
       <sl-tab-panel name="guide">
-        <section class="card reveal">
+        <section class="card">
           <h2><span class="tick"><span>13</span></span>How this works</h2>
           <div class="how">
             <p><strong>Best lap.</strong> For every driver we take the single fastest non-pit-out lap of the session you selected — nothing else from the weekend is used.</p>
@@ -393,52 +195,8 @@
   </section>
 </main>
 
-<!-- ===================== FOOTER ===================== -->
-<footer class="site-footer">
-  <div class="footer-inner">
-    <p class="footer-line">
-      <strong>Data:</strong>
-      <a href="https://openf1.org" target="_blank" rel="noopener noreferrer">OpenF1 API</a>
-      <span class="footer-sep">·</span>
-      Unofficial tool, not affiliated with Formula 1 or OpenF1
-    </p>
-    <a class="footer-top" href="#hero" data-scroll="#hero">Back to top ↑</a>
-  </div>
-</footer>
-
-<!-- ===================== FLOATING UI: back-to-top · toasts · loader · bg toggle =====================
-     PERF: custom cursor DOT+RING elements deleted entirely (HTML, CSS, JS).
-     Native browser cursor restored everywhere. -->
-<button id="backToTop" class="back-to-top" aria-label="Back to top" hidden>
-  <svg viewBox="0 0 44 44" width="44" height="44" aria-hidden="true" focusable="false">
-    <circle class="btt-track" cx="22" cy="22" r="19" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="3"/>
-    <circle class="btt-progress" cx="22" cy="22" r="19" fill="none" stroke="#DC0000" stroke-width="3"
-      stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" transform="rotate(-90 22 22)"/>
-  </svg>
-  <span class="btt-chevron" aria-hidden="true">↑</span>
-</button>
-
-<div class="toast-host" id="toastHost" role="status" aria-live="polite" aria-atomic="false"></div>
-
-<div class="loader" id="loader" hidden aria-hidden="true">
-  <div class="loader-inner">
-    <div class="lights" aria-hidden="true">
-      <span class="light"></span><span class="light"></span><span class="light"></span><span class="light"></span><span class="light"></span>
-    </div>
-    <div class="loader-label">Loading live data…</div>
-  </div>
-</div>
-
-<!-- PERF: lightweight background toggle. Pauses/hides the video; the choice
-     lives in a JS variable only (no localStorage). -->
-<button id="bgToggle" class="bg-toggle" type="button" aria-pressed="true" data-tip="Turns the night-race background video off to save battery and data.">Background: On</button>
-
-<!-- ===================== existing self-hosted libraries + app =====================
-     UI: the two heavy libraries are NOT in the document at all any more. app.js
-     loads Tabulator the first time a grid is built (after Analyze) and ECharts
-     the first time a speed trace is drawn, from the same vendored files under
-     /vendor/ — no CDN, and no 1.5 MB paid by a visitor who never runs an
-     analysis. Shoelace still loads its components on demand by itself. -->
+<script src="vendor/tabulator.min.js"></script>
+<script src="vendor/echarts.min.js"></script>
 <script type="module" src="vendor/shoelace/shoelace-autoloader.js" data-shoelace="/vendor/shoelace"></script>
 <script>
 // Boot check: if any UI library failed to load (blocked CDN/file missing),
@@ -451,10 +209,8 @@ window.addEventListener("DOMContentLoaded", function () {
           !customElements.get("sl-select") ||
           !customElements.get("sl-button") ||
           !customElements.get("sl-tab-group")) missing.push("controls (Shoelace)");
-      // Data grids (Tabulator) and charts (ECharts) are no longer loaded up
-      // front: app.js fetches each one the first time an analysis needs it, so
-      // their absence here says nothing. Two thirds of the old 1.5 MB vendor
-      // payload is now only paid for by a visitor who runs an analysis.
+      if (typeof Tabulator === "undefined") missing.push("data grids (Tabulator)");
+      if (typeof echarts === "undefined") missing.push("charts (ECharts)");
     } catch (e) { missing.push("startup check (" + e.message + ")"); }
     if (missing.length) {
       var box = document.getElementById("errorBox");
@@ -468,29 +224,6 @@ window.addEventListener("DOMContentLoaded", function () {
   }, 9000);
 });
 </script>
-<!-- UI: deferred with the vendor scripts above — top level only defines
-     functions and wires DOMContentLoaded, so delaying execution is safe. -->
-<!-- Hairline: the engine, its mount adapter and the lap-delta figure. The
-     scripts are same-origin and the engine's inject() is never called, so the
-     strict script-src / style-src policy is unchanged. -->
-<script defer src="hairline/kernel.js"></script>
-<script defer src="hairline/mount.js"></script>
-<script defer src="hairline/lapdelta.js"></script>
-<script defer src="app.js"></script>
-
-<!-- ===================== LIGHT UI LAYER (local, deferred) =====================
-     PERF: removed ALL third-party motion libraries — GSAP, ScrollTrigger,
-     Lenis, Vanilla-Tilt, CountUp.js, tsParticles, Splitting.js, Typed.js.
-     GSAP was only used for the removed effects, so it is gone entirely.
-     Native scrolling + IntersectionObserver + tiny vanilla JS do the rest.
-     Remaining script is local, deferred, and loads nothing unused. -->
-<script defer src="animations.js"></script>
-
-<!-- ===================== DESIGN-SYSTEM COMPONENT LAYER =====================
-     Loaded last: it upgrades markup app.js/animations.js already produced (nav,
-     result summary, footer, components surface) and never owns data. Class-only;
-     `style-src 'self'` forbids a style attribute, so runtime geometry travels as
-     CSS custom properties through CSSOM. -->
-<script defer src="components.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

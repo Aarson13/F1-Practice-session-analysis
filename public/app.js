@@ -26,90 +26,16 @@ const MIN_TELEMETRY_POINTS = 50;
 const REQUEST_SPACING_MS = 700; // stay under OpenF1 free-tier rate limits
 
 const $ = (id) => document.getElementById(id);
+const $$ = (sel) => document.querySelector(sel); // for CSS selectors (e.g. "#resultGrid p")
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/* ---------------- lazy vendor loading ----------------
- * Tabulator (grids) and ECharts (speed traces) are ~1.5 MB together and are
- * only needed after an analysis. They used to sit in the document as two
- * deferred tags; now the first grid/chart asks for its library and later
- * callers await the same promise. Same vendored files, same origin — the CSP
- * already covers them through script-src 'self'. */
-const vendorLoaders = new Map();
-function loadVendor(src, test) {
-  if (test()) return Promise.resolve(true);
-  if (vendorLoaders.has(src)) return vendorLoaders.get(src);
-  const promise = new Promise((resolve) => {
-    const tag = document.createElement("script");
-    tag.src = src;
-    tag.defer = true;
-    tag.addEventListener("load", () => resolve(!!test()));
-    tag.addEventListener("error", () => {
-      console.warn(`${src} failed to load`);
-      resolve(false);
-    });
-    document.head.appendChild(tag);
-  });
-  vendorLoaders.set(src, promise);
-  return promise;
-}
-function ensureTabulator() {
-  return loadVendor("vendor/tabulator.min.js", () => typeof Tabulator !== "undefined");
-}
-function ensureECharts() {
-  return loadVendor("vendor/echarts.min.js", () => typeof echarts !== "undefined");
-}
-
-/* ---------------- team colour + CSP-safe swatches ----------------
- * A team colour is runtime data, so it cannot be a class. It is written as a
- * data attribute in the template and painted here through CSSOM
- * (`el.style.background`), which `style-src 'self'` does not govern. A style
- * attribute in the template would be refused and the swatch would vanish. */
-function paintSwatches(root) {
-  const scope = root || document;
-  scope.querySelectorAll(".swatch[data-colour]").forEach((node) => {
-    node.style.background = teamColor(node.getAttribute("data-colour"));
-    node.removeAttribute("data-colour");
-  });
-}
-
-/* Images the API may not have (driver portraits, circuit photo, flag). They
- * used to carry inline onerror="this.remove()"; a capture-phase listener does
- * the same job without an inline handler, which the CSP refuses. */
-document.addEventListener("error", (event) => {
-  const node = event.target;
-  if (node && node.tagName === "IMG" && node.hasAttribute("data-img-fallback")) node.remove();
-}, true);
 
 /* ---------------- throttled fetch with timeout + retry ---------------- */
 let lastReqAt = 0;
 const REQUEST_TIMEOUT_MS = 30000;
-// PERF: serialize concurrent apiGet callers through a promise chain, so a
-// Promise.all burst (e.g. fetchOverview's 6 requests) goes out spaced apart
-// instead of all at once every ~700ms and tripping the API rate limit.
-// rateLimitUntil is a shared cooldown set after any HTTP 429.
-let paceChain = Promise.resolve();
-let rateLimitUntil = 0;
 async function pace() {
-  const run = paceChain.then(async () => {
-    const now = Date.now();
-    const wait = Math.max(REQUEST_SPACING_MS - (now - lastReqAt), rateLimitUntil - now, 0);
-    if (wait > 0) await sleep(wait);
-    lastReqAt = Date.now();
-  });
-  paceChain = run.catch(() => {});
-  await run;
-}
-// PERF: honor the server's Retry-After header (seconds or HTTP date) when present.
-function parseRetryAfterMs(res) {
-  try {
-    const v = res.headers && res.headers.get ? res.headers.get("retry-after") : null;
-    if (v == null || v === "") return 0;
-    const secs = Number(v);
-    if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
-    const at = Date.parse(v);
-    if (Number.isFinite(at)) return Math.max(0, at - Date.now());
-  } catch { /* ignore — fall back to computed backoff */ }
-  return 0;
+  const wait = REQUEST_SPACING_MS - (Date.now() - lastReqAt);
+  if (wait > 0) await sleep(wait);
+  lastReqAt = Date.now();
 }
 async function apiGet(url, label) {
   let lastError = null;
@@ -120,19 +46,13 @@ async function apiGet(url, label) {
     try {
       const res = await fetch(url, { signal: ctrl.signal });
       if (res.status === 429) {
-        // PERF: exponential backoff with jitter (honoring Retry-After) instead
-        // of a fixed 15s, plus a shared cooldown so later requests also wait
-        // out the limit window instead of re-tripping it in lockstep.
-        const backoff = Math.max(parseRetryAfterMs(res), 10000 * 2 ** (attempt - 1))
-          + Math.floor(Math.random() * 5000);
-        rateLimitUntil = Date.now() + backoff;
-        setStatus(`Rate-limited by the API — waiting ${Math.round(backoff / 1000)}s before retry (attempt ${attempt}/5)…`);
-        await sleep(backoff);
+        setStatus(`Rate-limited by the API — waiting 15s before retry (attempt ${attempt}/5)…`);
+        await sleep(15000);
         continue;
       }
       if (res.status >= 500 && res.status < 600) {
         lastError = new Error(`API error loading ${label}: HTTP ${res.status}`);
-        await sleep(2000 * attempt + Math.floor(Math.random() * 1000)); // transient server error — retry
+        await sleep(2000 * attempt); // transient server error — retry
         continue;
       }
       if (!res.ok) throw new Error(`API error loading ${label}: HTTP ${res.status}`);
@@ -158,8 +78,7 @@ async function apiGet(url, label) {
       }
       if (attempt === 5) break;
       setStatus(`Retrying ${label} (attempt ${attempt + 1}/5)…`);
-      // PERF: jitter so concurrent retry chains don't re-fire in lockstep.
-      await sleep(2000 * attempt + Math.floor(Math.random() * 1000));
+      await sleep(2000 * attempt);
     } finally {
       clearTimeout(timer);
     }
@@ -174,6 +93,10 @@ function fmtLap(sec) {
   const m = Math.floor(sec / 60);
   const s = (sec - m * 60).toFixed(3).padStart(6, "0");
   return `${m}:${s}`;
+}
+function fmtGap(g) {
+  if (g == null || !isFinite(g)) return "";
+  return g === 0 ? " — " : `+${g.toFixed(3)}`;
 }
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -235,6 +158,11 @@ function selectValues(sel) {
   const opts = sel.querySelectorAll ? [...sel.querySelectorAll("sl-option")] : [...(sel.options || [])];
   return opts.map((o) => (o.getAttribute ? o.getAttribute("value") ?? o.value : o.value));
 }
+function setSelectOptions(sel, items, placeholder) {
+  sel.innerHTML = "";
+  if (placeholder) sel.appendChild(mkOption("", placeholder));
+  for (const [value, text] of items) sel.appendChild(mkOption(value, text));
+}
 function selectOptionCount(sel) {
   return sel.querySelectorAll ? sel.querySelectorAll("sl-option").length : (sel.options || []).length;
 }
@@ -278,9 +206,9 @@ async function init() {
   $("driverCsvBtn").addEventListener("click", () => downloadGridCSV("driver", `drivers_${sessionTag()}.csv`));
   $("teamCsvBtn").addEventListener("click", () => downloadGridCSV("team", `teams_${sessionTag()}.csv`));
   $("sectorCsvBtn").addEventListener("click", () => downloadGridCSV("sector", `sectors_${sessionTag()}.csv`));
-  $("paceCsvBtn").addEventListener("click", () => downloadGridCSV("pace", `pace_${sessionTag()}.csv`));    $("resultTabs").addEventListener("sl-tab-show", (e) => {
-    const name = e.detail && e.detail.name;
-    refreshTab(name).then(() => focusPanelHeading(name)).catch((err) => console.warn(err));
+  $("paceCsvBtn").addEventListener("click", () => downloadGridCSV("pace", `pace_${sessionTag()}.csv`));
+  $("resultTabs").addEventListener("sl-tab-show", (e) => {
+    refreshTab(e.detail && e.detail.name).catch((err) => console.warn(err));
   });
   let resizeTimer = 0;
   window.addEventListener("resize", () => {
@@ -302,18 +230,6 @@ async function init() {
     if (location.hash.length > 1 && (await loadFromHash())) return;
   } catch (e) { console.warn("share link failed", e); }
   await loadMeetings();
-}
-
-/* Tabs are this app's route change: the panel that appears is new content, so
- * focus moves to its heading (h2 — the page's only h1 is the hero, several
- * screens above) with preventScroll, exactly as the shared contract asks. */
-function focusPanelHeading(name) {
-  if (!name) return;
-  const panel = document.querySelector(`sl-tab-panel[name="${name}"]`);
-  const heading = panel && panel.querySelector("h2");
-  if (!heading) return;
-  heading.setAttribute("tabindex", "-1");
-  try { heading.focus({ preventScroll: true }); } catch { /* older engines */ }
 }
 
 function saveShareHash() {
@@ -973,11 +889,6 @@ async function runAnalysis() {
     await sleep(30);
     await renderAll();
     $("results").hidden = false;
-    // The lap-delta figure reads the same analysis the Sectors table renders.
-    if (window.mountF1LapDelta) window.mountF1LapDelta(a);
-    // The shareable analysis is the route change this page has; announce it by
-    // moving focus to the summary heading rather than leaving focus on Analyze.
-    focusPanelHeading("overview");
     try {
       const tg = document.getElementById("resultTabs");
       if (tg && tg.show) tg.show("overview");
@@ -1020,8 +931,9 @@ async function refreshTab(name) {
       await awaitVisible(el);
     }
     if (!state.builtTabs.has(name)) { await ensureTabBuilt(name); return; }
+    if (!state.builtTabs.has(name)) { await ensureTabBuilt(name); return; }
     if (name === "track") { if (!replay.on) drawTrackMap(a, state.highlightBin); }
-    else if (name === "traces") { if (speedChart) speedChart.resize(); else await renderSpeedChart(a, null); }
+    else if (name === "traces") { if (speedChart) speedChart.resize(); else renderSpeedChart(a, null); }
     else if (name === "duel") {
       const pair = currentDuelPair();
       if (pair && pair.A) drawH2HMap(a, pair.A, pair.B);
@@ -1058,13 +970,13 @@ async function ensureTabBuilt(name) {
   state.builtTabs.add(name);
   if (name === "overview") { renderSummary(a); renderContext(a); }
   else if (name === "track") { await renderTrackMap(a); }
-  else if (name === "corners") { await renderCornerTable(a); }
+  else if (name === "corners") { renderCornerTable(a); }
   else if (name === "duel") { await renderH2H(); }
-  else if (name === "drivers") { await renderDriverTable(a); await renderTeamTable(a); }
-  else if (name === "sectors") { await renderSectorTable(a); }
-  else if (name === "pace") { await renderPace(a); }
-  else if (name === "traces") { await renderSpeedChart(a, null); }
-  else if (name === "classification") { await renderClassification(a); }
+  else if (name === "drivers") { renderDriverTable(a); renderTeamTable(a); }
+  else if (name === "sectors") { renderSectorTable(a); }
+  else if (name === "pace") { renderPace(a); }
+  else if (name === "traces") { renderSpeedChart(a, null); }
+  else if (name === "classification") { renderClassification(a); }
 }
 
 function pillFor(compound) {
@@ -1076,7 +988,7 @@ function pillFor(compound) {
 function portraitFor(info, size) {
   if (!info || !info.img) return "";
   const px = size || 26;
-  return `<img class="portrait portrait--${px}" data-img-fallback loading="lazy" src="${esc(info.img)}" alt="" />`;
+  return `<img class="portrait" style="width:${px}px;height:${px}px" loading="lazy" src="${esc(info.img)}" alt="" onerror="this.remove()" />`;
 }
 
 function renderSummary(a) {
@@ -1085,10 +997,10 @@ function renderSummary(a) {
   if (meeting && (meeting.circuit_image || meeting.meeting_name)) {
     hero.hidden = false;
     const img = meeting.circuit_image
-      ? `<img class="circuit-photo" data-img-fallback loading="lazy" decoding="async" src="${esc(meeting.circuit_image)}" alt="${esc(meeting.circuit_short_name || "circuit")} track map" />`
+      ? `<img class="circuit-photo" loading="lazy" decoding="async" src="${esc(meeting.circuit_image)}" alt="${esc(meeting.circuit_short_name || "circuit")} track map" onerror="this.remove()" />`
       : "";
     const flag = meeting.country_flag
-      ? `<img class="flag-img" data-img-fallback loading="lazy" decoding="async" src="${esc(meeting.country_flag)}" alt="" />`
+      ? `<img class="flag-img" loading="lazy" decoding="async" src="${esc(meeting.country_flag)}" alt="" onerror="this.remove()" />`
       : "";
     hero.innerHTML =
       `${img}<div class="circuit-meta"><h3>${flag}${esc(meeting.meeting_name || "")}</h3>` +
@@ -1109,8 +1021,7 @@ function renderSummary(a) {
   $("summaryChips").innerHTML =
     `<span class="chip">⏱️ <b>Fastest lap</b> ${esc(fastest.info.acronym)} — ${fmtLap(fastest.lap.lap_duration)}</span>` +
     `<span class="chip">↩️ <b>Most corners won (driver)</b> ${esc(cornerKing.info.acronym)} — ${cornerKing.won}</span>` +
-    `<span class="chip">🏆 <b>Most corners won (team)</b> <span class="swatch" data-colour="${esc(teamKing.colour)}"></span>${esc(teamKing.team)} — ${teamKing.won}</span>`;
-  paintSwatches($("summaryChips"));
+    `<span class="chip">🏆 <b>Most corners won (team)</b> <span class="swatch" style="background:${teamKing.colour}"></span>${esc(teamKing.team)} — ${teamKing.won}</span>`;
 }
 
 /* ---------------- Tabulator grids ---------------- */
@@ -1120,13 +1031,10 @@ function sessionTag() {
   if (!a) return "session";
   return `${String(a.session.session_name).replace(/[^\w]+/g, "")}_${a.session.session_key}`;
 }
-async function makeGrid(name, data, columns, sortField, sortDir) {
+function makeGrid(name, data, columns, sortField, sortDir) {
   const elId = `${name}Grid`;
   if (grids[name]) { try { grids[name].destroy(); } catch { /* ignore */ } delete grids[name]; }
-  if (!(await ensureTabulator())) {
-    showError("The data-grid library could not be loaded. Check your connection and run the analysis again.");
-    return null;
-  }
+  if (typeof Tabulator === "undefined") return null;
   const t = new Tabulator(`#${elId}`, {
     data,
     columns,
@@ -1147,7 +1055,6 @@ async function makeGrid(name, data, columns, sortField, sortDir) {
     try {
       const root = document.getElementById(elId);
       if (!root) return;
-      paintSwatches(root);
       root.querySelectorAll('.tabulator-header-contents[role="rowgroup"]')
         .forEach((n) => n.setAttribute("role", "row"));
       root.querySelectorAll(".tabulator-headers[role]")
@@ -1170,11 +1077,11 @@ function downloadGridCSV(name, filename) {
   catch (e) { showError(`CSV download failed: ${(e && e.message) || e}`); }
 }
 const driverCellHtml = (info) =>
-  `${portraitFor(info)}<span class="swatch" data-colour="${esc(info.colour)}"></span><span class="best-cell">${esc(info.acronym)}</span>`;
+  `${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span><span class="best-cell">${esc(info.acronym)}</span>`;
 const teamCellHtml = (name, colour) =>
-  `<span class="swatch" data-colour="${esc(colour)}"></span><span class="best-cell">${esc(name)}</span>`;
+  `<span class="swatch" style="background:${colour}"></span><span class="best-cell">${esc(name)}</span>`;
 
-async function renderCornerTable(a) {
+function renderCornerTable(a) {
   const data = a.cornerResults.map((c, idx) => {
     const best = c.ranking[0];
     const bd = a.driverInfo.get(best.num);
@@ -1185,7 +1092,7 @@ async function renderCornerTable(a) {
       bestDriver: bd.acronym,
       bestDriverHtml: `${portraitFor(bd)}${teamCellHtml(bd.acronym, bd.colour)}`,
       bestAvg: best.avg,
-      bestAvgHtml: `${best.avg.toFixed(1)} km/h <span class="muted">(min ${best.min.toFixed(0)})</span>`,
+      bestAvgHtml: `${best.avg.toFixed(1)} km/h <span style="color:var(--muted)">(min ${best.min.toFixed(0)})</span>`,
       bestTeam: c.bestTeam.team,
       bestTeamHtml: teamCellHtml(c.bestTeam.team, c.bestTeam.colour),
       top3: c.ranking.slice(0, 3)
@@ -1193,7 +1100,7 @@ async function renderCornerTable(a) {
         .join(", "),
     };
   });
-  const g = await makeGrid("corner", data, [
+  const g = makeGrid("corner", data, [
     { title: "Turn", field: "turn", sorter: "string", formatter: (cell) => `<span class="best-cell">${esc(cell.getValue())}</span>` },
     { title: "Apex %", field: "apexPct", sorter: "number", hozAlign: "right", formatter: (cell) => `${cell.getValue().toFixed(1)}%` },
     { title: "Best driver", field: "bestDriver", sorter: "string", formatter: (cell) => cell.getRow().getData().bestDriverHtml },
@@ -1212,11 +1119,11 @@ async function renderCornerTable(a) {
   }
 }
 
-async function renderDriverTable(a) {
+function renderDriverTable(a) {
   const data = a.driverStats.map((d) => ({
     id: d.num,
     driver: d.info.acronym,
-    driverHtml: `${driverCellHtml(d.info)} <span class="muted">${esc(d.info.name)}</span>`,
+    driverHtml: `${driverCellHtml(d.info)} <span style="color:var(--muted)">${esc(d.info.name)}</span>`,
     team: d.info.team,
     teamHtml: teamCellHtml(d.info.team, d.info.colour),
     bestLapS: d.lap.lap_duration,
@@ -1232,7 +1139,7 @@ async function renderDriverTable(a) {
     deficit: d.deficit,
     deficitHtml: `+${d.deficit.toFixed(2)} km/h`,
   }));
-  await makeGrid("driver", data, [
+  makeGrid("driver", data, [
     { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
     { title: "Team", field: "team", sorter: "string", formatter: (cell) => cell.getRow().getData().teamHtml },
     { title: "Best lap", field: "bestLapS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().bestLapHtml },
@@ -1244,7 +1151,7 @@ async function renderDriverTable(a) {
   ], "bestLapS", "asc");
 }
 
-async function renderTeamTable(a) {
+function renderTeamTable(a) {
   const data = a.teamStats.map((t) => ({
     team: t.team,
     teamHtml: teamCellHtml(t.team, t.colour),
@@ -1256,7 +1163,7 @@ async function renderTeamTable(a) {
     avgCornerHtml: `${t.avgCorner.toFixed(1)} km/h`,
     strongest: t.strongest == null ? "—" : `T${t.strongest}`,
   }));
-  await makeGrid("team", data, [
+  makeGrid("team", data, [
     { title: "Team", field: "team", sorter: "string", formatter: (cell) => cell.getRow().getData().teamHtml },
     { title: "Drivers", field: "drivers", sorter: "string", headerSort: false },
     { title: "Avg best lap", field: "avgLapS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().avgLapHtml },
@@ -1373,8 +1280,7 @@ async function renderTrackMap(a) {
   stopReplay();
   drawTrackMap(a, null);
   $("mapLegend").innerHTML = [...new Map(a.teamStats.map((t) => [t.team, t.colour])).entries()]
-    .map(([t, col]) => `<span><span class="swatch" data-colour="${esc(col)}"></span>${esc(t)}</span>`).join("");
-  paintSwatches($("mapLegend"));
+    .map(([t, col]) => `<span><span class="swatch" style="background:${col}"></span>${esc(t)}</span>`).join("");
 }
 
 function cornerPixel(c, shape) {
@@ -1479,7 +1385,7 @@ function onTrackClick(ev) {
   setTimeout(() => cells.forEach((c) => c.classList.remove("flash")), 2100);
 }
 
-async function renderClassification(a) {
+function renderClassification(a) {
   const rows = [...(a.classification || [])].sort((x, y) => (x.position ?? 999) - (y.position ?? 999));
   const data = rows.map((r) => {
     const info = a.driverInfo.get(r.driver_number) || { acronym: `#${r.driver_number}`, name: "", team: "", colour: "#999", img: "" };
@@ -1488,7 +1394,7 @@ async function renderClassification(a) {
       pos: r.position ?? 999,
       posHtml: `${r.position ?? "—"}`,
       driver: info.acronym,
-      driverHtml: `${portraitFor(info)}<span class="swatch" data-colour="${esc(info.colour)}"></span>${esc(info.acronym)} <span class="muted">${esc(info.name)}</span>`,
+      driverHtml: `${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span>${esc(info.acronym)} <span style="color:var(--muted)">${esc(info.name)}</span>`,
       team: info.team,
       durHtml: `${dur != null && dur !== "" ? (typeof dur === "number" ? fmtLap(dur) : esc(dur)) : "—"}`,
       laps: r.number_of_laps ?? "—",
@@ -1496,10 +1402,10 @@ async function renderClassification(a) {
   });
   if (!data.length) {
     const el = document.getElementById("resultGrid");
-    if (el) el.innerHTML = `<p class="hint hint--padded">Official classification not published for this session.</p>`;
+    if (el) el.innerHTML = `<p class="hint" style="padding:12px">Official classification not published for this session.</p>`;
     return;
   }
-  await makeGrid("result", data, [
+  makeGrid("result", data, [
     { title: "Pos", field: "pos", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().posHtml },
     { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
     { title: "Team", field: "team", sorter: "string" },
@@ -1523,14 +1429,14 @@ function renderContext(a) {
   }
   const flags = a.flagEvents || [];
   for (const f of flags.slice(0, 6)) {
-    chips.push(`<span class="chip">🚩 <b>${esc(f.flag)}</b> ${esc(f.t)} <span class="muted">${esc(f.msg.slice(0, 60))}</span></span>`);
+    chips.push(`<span class="chip">🚩 <b>${esc(f.flag)}</b> ${esc(f.t)} <span style="color:var(--muted)">${esc(f.msg.slice(0, 60))}</span></span>`);
   }
   if (flags.length > 6) chips.push(`<span class="chip">+${flags.length - 6} more flag/safety-car events</span>`);
   box.innerHTML = chips.join("") || `<span class="chip">No weather / race-control data published for this session.</span>`;
 }
 
 /* ---------------- sectors & speed traps ---------------- */
-async function renderSectorTable(a) {
+function renderSectorTable(a) {
   const s = (v) => (v == null || !isFinite(v) ? null : v);
   const data = a.driverStats.map((d) => {
     const L = d.lap;
@@ -1553,7 +1459,7 @@ async function renderSectorTable(a) {
     title: t, field: f, sorter: "number", hozAlign: "right",
     formatter: (cell) => { const v = cell.getValue(); return v == null ? "—" : `${v} km/h`; },
   });
-  await makeGrid("sector", data, [
+  makeGrid("sector", data, [
     { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
     sec("S1", "s1"), sec("S2", "s2"), sec("S3", "s3"),
     { title: "Best lap", field: "bestLapS", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getRow().getData().bestLapHtml },
@@ -1566,16 +1472,16 @@ async function renderSectorTable(a) {
 function gatePaceTab(a) {
   try { $("paceTab").disabled = !(a.pace && a.pace.length); } catch { /* ignore */ }
 }
-async function renderPace(a) {
+function renderPace(a) {
   if (!a.pace || !a.pace.length) return;
   const data = a.pace.map((p) => {
     const info = a.driverInfo.get(p.num) || { acronym: `#${p.num}`, colour: "#999", img: "" };
     return {
       driver: info.acronym,
-      driverHtml: `${portraitFor(info)}<span class="swatch" data-colour="${esc(info.colour)}"></span><span class="best-cell">${esc(info.acronym)}</span>`,
+      driverHtml: `${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span><span class="best-cell">${esc(info.acronym)}</span>`,
       stint: p.stint,
       compound: p.compound,
-      compoundHtml: `${pillFor(p.compound)} <span class="muted">age ${esc(p.age)}</span>`,
+      compoundHtml: `${pillFor(p.compound)} <span style="color:var(--muted)">age ${esc(p.age)}</span>`,
       n: p.n,
       avgS: p.avg,
       avgHtml: fmtLap(p.avg),
@@ -1583,7 +1489,7 @@ async function renderPace(a) {
       slopeHtml: `${p.slope >= 0 ? "+" : ""}${p.slope.toFixed(3)}`,
     };
   });
-  await makeGrid("pace", data, [
+  makeGrid("pace", data, [
     { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
     { title: "Stint", field: "stint", sorter: "number", hozAlign: "right" },
     { title: "Compound", field: "compound", sorter: "string", formatter: (cell) => cell.getRow().getData().compoundHtml },
@@ -1612,7 +1518,8 @@ function ensureGridHost(afterId, gridId) {
   if (!host) {
     host = document.createElement("div");
     host.id = gridId;
-    host.className = "grid grid--spaced";
+    host.className = "grid";
+    host.style.marginTop = "12px";
     const anchor = document.getElementById(afterId);
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(host, anchor.nextSibling);
   }
@@ -1653,20 +1560,20 @@ async function renderH2H() {
     return {
       turn: `T${c.number}`,
       aAvg: ra.avg, bAvg: rb.avg, delta,
-      deltaHtml: `<span class="delta ${delta >= 0 ? "delta--up" : "delta--down"}">${delta >= 0 ? "+" : ""}${delta.toFixed(2)}</span>`,
+      deltaHtml: `<span style="color:${delta >= 0 ? "var(--good)" : "var(--accent-2)"};font-weight:800">${delta >= 0 ? "+" : ""}${delta.toFixed(2)}</span>`,
       winner: win.info.acronym,
-      winnerHtml: `<span class="swatch" data-colour="${esc(win.info.colour)}"></span><span class="best-cell">${esc(win.info.acronym)}</span>`,
+      winnerHtml: `<span class="swatch" style="background:${win.info.colour}"></span><span class="best-cell">${esc(win.info.acronym)}</span>`,
     };
   });
   const lapDelta = A.lap.lap_duration - B.lap.lap_duration;
   box.innerHTML =
-    `<div class="chips chips--block">` +
+    `<div class="chips" style="margin-bottom:10px">` +
     `<span class="chip">${portraitFor(A.info)}<b>${esc(A.info.acronym)}</b> ${wa} corners ${pillFor(A.compound)}</span>` +
     `<span class="chip">${portraitFor(B.info)}<b>${esc(B.info.acronym)}</b> ${wb} corners ${pillFor(B.compound)}</span>` +
     `<span class="chip">⏱️ <b>Lap delta</b> ${lapDelta === 0 ? "dead heat" : `${esc((lapDelta > 0 ? B : A).info.acronym)} by ${Math.abs(lapDelta).toFixed(3)}s`}</span>` +
     `</div>`;
   ensureGridHost("h2hResult", "h2hGrid");
-  await makeGrid("h2h", data, [
+  makeGrid("h2h", data, [
     { title: "Turn", field: "turn", sorter: "string", formatter: (cell) => `<span class="best-cell">${esc(cell.getValue())}</span>` },
     { title: `${A.info.acronym} km/h`, field: "aAvg", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getValue().toFixed(1) },
     { title: `${B.info.acronym} km/h`, field: "bAvg", sorter: "number", hozAlign: "right", formatter: (cell) => cell.getValue().toFixed(1) },
@@ -1675,7 +1582,7 @@ async function renderH2H() {
   ], "delta", "desc");
   await drawH2HMap(a, A, B);
   // sync the main speed chart to just these two
-  await renderSpeedChart(a, [na, nb]);
+  renderSpeedChart(a, [na, nb]);
 }
 
 /* ---------------- weekend view ---------------- */
@@ -1703,7 +1610,7 @@ async function runWeekend() {
         perSession.push({ session: s, data: null, error: (e && e.message) || String(e) });
       }
     }
-    await renderWeekend(perSession);
+    renderWeekend(perSession);
     setStatus(`Weekend view done — ${perSession.filter((p) => p.data).length}/${perSession.length} sessions analyzed.`, 1);
   } catch (e) {
     console.error(e);
@@ -1714,7 +1621,7 @@ async function runWeekend() {
   }
 }
 function cornerKey(c, idx) { return c.official ? `T${c.number}` : `#${idx}`; }
-async function renderWeekend(perSession) {
+function renderWeekend(perSession) {
   const box = $("weekendResult");
   const ok = perSession.filter((p) => p.data);
   if (!ok.length) { box.innerHTML = `<p class="hint">No session could be analyzed for this weekend.</p>`; return; }
@@ -1734,7 +1641,7 @@ async function renderWeekend(perSession) {
     formatter: (cell) => `<span class="best-cell">${esc(cell.getValue())}</span>` }];
   ok.forEach((p, i) => {
     cols.push({ title: p.session.session_name, field: `s${i}`, sorter: "string",
-      formatter: (cell) => cell.getRow().getData()[`s${i}Html`] || `<span class="muted">—</span>` });
+      formatter: (cell) => cell.getRow().getData()[`s${i}Html`] || `<span style="color:var(--muted)">—</span>` });
   });
   const data = order.map((k) => {
     const row = { turn: k };
@@ -1743,15 +1650,15 @@ async function renderWeekend(perSession) {
       if (idx < 0) { row[`s${i}`] = ""; row[`s${i}Html`] = ""; return; }
       const t = p.data.cornerResults[idx].bestTeam;
       row[`s${i}`] = t.team;
-      row[`s${i}Html`] = `<span class="swatch" data-colour="${esc(t.colour)}"></span>${esc(t.team)}`;
+      row[`s${i}Html`] = `<span class="swatch" style="background:${t.colour}"></span>${esc(t.team)}`;
     });
     return row;
   });
   const failed = perSession.filter((p) => !p.data)
     .map((p) => `<span class="chip">⚠️ ${esc(p.session.session_name)}: ${esc((p.error || "failed").slice(0, 80))}</span>`).join("");
-  box.innerHTML = `<div class="chips chips--block">${lines}${failed}</div>`;
+  box.innerHTML = `<div class="chips" style="margin-bottom:10px">${lines}${failed}</div>`;
   ensureGridHost("weekendResult", "weekendGrid");
-  await makeGrid("weekend", data, cols, "turn", "asc");
+  makeGrid("weekend", data, cols, "turn", "asc");
 }
 
 /* ---------------- head-to-head duel map ----------------
@@ -1798,18 +1705,16 @@ async function drawH2HMap(a, A, B) {
   }
   if (legend) {
     legend.innerHTML =
-      `<span><span class="swatch" data-colour="${esc(A.info.colour)}"></span>${esc(A.info.acronym)} faster</span>` +
-      `<span><span class="swatch" data-colour="${esc(B.info.colour)}"></span>${esc(B.info.acronym)} faster</span>`;
-    paintSwatches(legend);
+      `<span><span class="swatch" style="background:${A.info.colour}"></span>${esc(A.info.acronym)} faster</span>` +
+      `<span><span class="swatch" style="background:${B.info.colour}"></span>${esc(B.info.acronym)} faster</span>`;
   }
 }
 
 /* ---------------- ECharts speed traces ---------------- */
 let speedChart = null;
-async function renderSpeedChart(a, preset) {
+function renderSpeedChart(a, preset) {
   const el = document.getElementById("speedChart");
-  if (!el) return;
-  if (!(await ensureECharts())) return;
+  if (!el || typeof echarts === "undefined") return;
   if (speedChart) { try { speedChart.dispose(); } catch { /* ignore */ } speedChart = null; }
   const sorted = [...a.driverStats].sort((x, y) => x.lap.lap_duration - y.lap.lap_duration);
   const nums = sorted.map((d) => d.num);
