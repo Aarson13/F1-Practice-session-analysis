@@ -126,7 +126,7 @@
 
 <!-- ===================== STICKY GLASS NAVBAR ===================== -->
 <nav class="navbar" id="navbar" aria-label="Primary">
-  <a class="nav-logo" href="#hero" data-scroll="#hero" aria-label="F1 Session Analyzer — top">
+  <a class="nav-logo" href="#hero" data-scroll="#hero" aria-label="F1 Analyzer — top of page">
     <svg class="nav-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
       <rect x="2" y="4" width="28" height="22" rx="2" fill="#0a0a0c" stroke="#DC0000" stroke-width="1.6"/>
       <g fill="#f2f2f2">
@@ -208,8 +208,15 @@
     </div>
     <div class="controls-row">
       <sl-button id="analyzeBtn" variant="primary" disabled>Analyze selected session</sl-button>
-      <sl-button id="copyLinkBtn" variant="default" disabled title="Copy a link that re-opens this exact analysis">🔗 Copy share link</sl-button>
-      <sl-button id="resetBtn" variant="default">Reset</sl-button>
+      <!-- The tooltip host is the wrapper, never the sl-button: the engine appends
+           its tip inside the trigger, and a child of a custom element lands in
+           that element's default slot, which would rewrite the button label. -->
+      <span class="f1-tip-host" data-tip="Copies a link that re-opens this exact session with every filter you set.">
+        <sl-button id="copyLinkBtn" variant="default" disabled title="Copy a link that re-opens this exact analysis">🔗 Copy share link</sl-button>
+      </span>
+      <span class="f1-tip-host" data-tip="Clears the analysis and the filters on this device; the session data itself is untouched.">
+        <sl-button id="resetBtn" variant="default">Reset</sl-button>
+      </span>
     </div>
     <div id="statusBox" class="status" hidden>
       <div class="progress"><div id="progressBar"></div></div>
@@ -424,7 +431,7 @@
 
 <!-- PERF: lightweight background toggle. Pauses/hides the video; the choice
      lives in a JS variable only (no localStorage). -->
-<button id="bgToggle" class="bg-toggle" type="button" aria-pressed="true">Background: On</button>
+<button id="bgToggle" class="bg-toggle" type="button" aria-pressed="true" data-tip="Turns the night-race background video off to save battery and data.">Background: On</button>
 
 <!-- ===================== existing self-hosted libraries + app =====================
      UI: the two heavy libraries are NOT in the document at all any more. app.js

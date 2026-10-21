@@ -30,7 +30,10 @@
     tab: 'overview',
     tooltipDelay: 100,
     replaySpeed: '2',
-    filter: 'adopted',
+    // The surface at /?components=1 exists to render every component; opening
+    // it on "adopted" hid the fifteen hosted ones, so the route could not show
+    // what the manifest measured. Adopted/hosted remain one click away.
+    filter: 'all',
     reduceMotion: false,
     contrast: false
   };
@@ -189,11 +192,32 @@
         }, Number(store.tooltipDelay) || 0);
       }
       trigger.addEventListener('mouseenter', show);
-      trigger.addEventListener('focus', show);
       trigger.addEventListener('mouseleave', close);
-      trigger.addEventListener('blur', close);
+      // focusin/focusout, not focus/blur: a trigger that wraps a custom element
+      // (the toolbar's Shoelace buttons) receives focus on its shadow child, and
+      // focus does not bubble across that boundary — focusin is composed and does.
+      trigger.addEventListener('focusin', show);
+      trigger.addEventListener('focusout', close);
       trigger.addEventListener('keydown', function (event) { if (event.key === 'Escape') close(); });
     });
+  }
+
+  /* Switches the result tabs and puts focus on the panel's own heading, which
+     is what a figure on this page is a summary of. */
+  function openResultPanel(name) {
+    var group = document.getElementById('resultTabs');
+    if (!group) return;
+    if (typeof group.show === 'function') group.show(name);
+    else {
+      var tab = group.querySelector('sl-tab[panel="' + name + '"]');
+      if (tab) tab.click();
+    }
+    var panel = group.querySelector('sl-tab-panel[name="' + name + '"]');
+    var heading = panel ? panel.querySelector('h1, h2, h3') : null;
+    if (!heading) return;
+    if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView({ block: 'center' });
   }
 
   /* ── 3. Animated counters (summary figures) ───────────────────── */
@@ -204,10 +228,18 @@
       fresh('div', meta).forEach(function (row) {
         var value = row.lastChild;
         if (!value || value.nodeType !== 3 || !/\d/.test(value.nodeValue || '')) return;
-        var raw = value.nodeValue;
+        var raw = value.nodeValue.trim();
+        if (!raw) return;
         row.setAttribute('data-ct-done', '1');
-        var wrap = el('span', 'f1-counter', raw);
+        var label = (row.querySelector('b') ? row.querySelector('b').textContent : '').toLowerCase();
+        var panel = label.indexOf('driver') !== -1 ? 'drivers' : label.indexOf('corner') !== -1 ? 'corners' : 'overview';
+        var name = panel === 'drivers' ? 'Drivers & Teams' : panel === 'corners' ? 'Corners' : 'Overview';
+        // The figure is the control: "Drivers analyzed" opens that tab's rows.
+        var wrap = el('button', 'f1-counter touch-target', raw);
+        wrap.type = 'button';
         wrap.setAttribute('data-component', 'animated-counter');
+        wrap.setAttribute('aria-label', raw + ' — open ' + name);
+        wrap.addEventListener('click', function () { openResultPanel(panel); });
         row.replaceChild(wrap, value);
         if (!reduced()) {
           wrap.classList.remove('f1-tick');
@@ -688,9 +720,22 @@
       grid.appendChild(cell);
     }
     var note = el('p', 'f1-note', 'Sample grid — this site has no contribution feed; the component is hosted here to render and behave, not to report data.');
+    var open = el('button', 'f1-drill touch-target', 'Open the session timeline →');
+    open.type = 'button';
+    open.setAttribute('aria-label', 'Open the session timeline this sample grid sits beside');
+    open.addEventListener('click', function () { focusComponent('skiper74'); });
     holder.appendChild(grid);
     holder.appendChild(note);
+    holder.appendChild(open);
     return holder;
+  }
+
+  function focusComponent(id) {
+    var node = document.querySelector('[data-component~="' + id + '"]');
+    if (!node) return;
+    if (!node.hasAttribute('tabindex')) node.setAttribute('tabindex', '-1');
+    node.focus({ preventScroll: true });
+    node.scrollIntoView({ block: 'center' });
   }
 
   function analyticsFigure() {
@@ -732,6 +777,11 @@
     var list = sessions();
     if (!list.length) {
       holder.appendChild(el('p', 'f1-note', 'Pick a Grand Prix and this becomes that weekend\'s real session timeline.'));
+      var emptyOpen = el('button', 'f1-drill touch-target', 'Open the session facts →');
+      emptyOpen.type = 'button';
+      emptyOpen.setAttribute('aria-label', 'Open the session facts this timeline will summarise');
+      emptyOpen.addEventListener('click', function () { focusComponent('transaction-list'); });
+      holder.appendChild(emptyOpen);
       return holder;
     }
     var strip = el('ol', 'f1-timeline');
@@ -744,6 +794,11 @@
       strip.appendChild(item);
     });
     holder.appendChild(strip);
+    var open = el('button', 'f1-drill touch-target', 'Open the session facts →');
+    open.type = 'button';
+    open.setAttribute('aria-label', 'Open the session facts behind this timeline');
+    open.addEventListener('click', function () { focusComponent('transaction-list'); });
+    holder.appendChild(open);
     holder.appendChild(el('p', 'f1-note', 'Live: the sessions the app loaded for the selected Grand Prix.'));
     return holder;
   }
@@ -753,6 +808,25 @@
     var a = analysis();
     if (!a || !a.driverStats || !a.driverStats.length) {
       holder.appendChild(el('p', 'f1-note', 'Run an analysis and each analyzed driver gets a card here — team, best lap and corners won.'));
+      // One placeholder card so the surface still proves the expand/collapse
+      // control before an analysis exists. It carries no invented lap time: the
+      // detail says what a real card would show, and the live cards replace it.
+      var placeholder = el('button', 'f1-profile touch-target');
+      placeholder.type = 'button';
+      placeholder.setAttribute('aria-expanded', 'false');
+      var topRow = el('span', 'f1-profile-top');
+      topRow.appendChild(el('strong', null, 'Placeholder card'));
+      topRow.appendChild(el('span', 'f1-muted', 'sample'));
+      placeholder.appendChild(topRow);
+      var hiddenDetail = el('span', 'f1-profile-detail');
+      hiddenDetail.hidden = true;
+      hiddenDetail.textContent = 'After a run this expands to the driver’s best lap, corners won and compound — read from the analysis in memory.';
+      placeholder.appendChild(hiddenDetail);
+      placeholder.addEventListener('click', function () {
+        hiddenDetail.hidden = !hiddenDetail.hidden;
+        placeholder.setAttribute('aria-expanded', String(!hiddenDetail.hidden));
+      });
+      holder.appendChild(placeholder);
       return holder;
     }
     a.driverStats.slice(0, 4).forEach(function (driver) {
@@ -1200,7 +1274,24 @@
     grid.appendChild(p23);
 
     var p24 = panel('Figure counters', 'animated-counter');
-    p24.appendChild(el('p', 'f1-note', 'The live instances are the numeric values in the Session summary, which tick when an analysis renders them.'));
+    // A real instance on the surface, not only a note: the live counters need an
+    // analysis to exist, so this is the one the gallery itself can prove.
+    var sampleCounter = el('button', 'f1-counter touch-target', '42');
+    sampleCounter.type = 'button';
+    sampleCounter.setAttribute('data-component', 'animated-counter');
+    sampleCounter.setAttribute('aria-label', '42 sample figures — open the session timeline');
+    sampleCounter.addEventListener('click', function () { focusComponent('skiper74'); });
+    p24.appendChild(sampleCounter);
+    // A second sample with a suffix: the live counters use both shapes (a whole
+    // count and the acceptance-style percentage), and a sample that only ever
+    // shows an integer would not prove the formatter.
+    var sampleShare = el('button', 'f1-counter touch-target', '94.7%');
+    sampleShare.type = 'button';
+    sampleShare.setAttribute('data-component', 'animated-counter');
+    sampleShare.setAttribute('aria-label', '94.7 percent sample figure — open the session overview');
+    sampleShare.addEventListener('click', function () { openResultPanel('overview'); });
+    p24.appendChild(sampleShare);
+    p24.appendChild(el('p', 'f1-note', 'Both figures are samples on this surface. The live instances are the numeric values in the Session summary, which tick when an analysis renders them.'));
     grid.appendChild(p24);
 
     // Feedback — the live form is in the footer

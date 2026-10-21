@@ -33,6 +33,13 @@
 
 /* ── Warm tooltip ────────────────────────────────────────────────── */
 .f1-tip-trigger { position: relative; }
+/* A trigger that wraps a Shoelace button: the tip lives here, beside the custom
+ * element, so it never enters that element's default slot. */
+.f1-tip-host { position: relative; display: inline-flex; }
+/* Above, not below: the controls row sits mid-card, and a tip below it is cut
+ * off by the card's clipped edge. */
+.f1-tip-host .f1-tip { top: auto; bottom: calc(100% + 8px); }
+.bg-toggle .f1-tip { top: auto; bottom: calc(100% + 8px); left: auto; right: 0; }
 .f1-tip-trigger:focus-visible { outline: 2px solid var(--red-glow); outline-offset: 2px; border-radius: 6px; }
 .f1-tip {
   position: absolute; left: 0; top: calc(100% + 8px); z-index: 90;
@@ -48,6 +55,18 @@ sl-button .f1-tip { top: auto; bottom: calc(100% + 8px); }
 
 /* ── Animated counter ────────────────────────────────────────────── */
 .f1-counter { font-variant-numeric: tabular-nums; }
+button.f1-counter {
+  font: inherit; color: inherit; padding: 0; background: none; cursor: pointer;
+  border: 0; border-bottom: 1px dotted var(--border);
+}
+button.f1-counter:hover { color: var(--red); border-bottom-color: var(--red); }
+button.f1-counter:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 2px; }
+.f1-drill {
+  font: inherit; font-size: 11.5px; font-weight: 600; color: var(--text); background: none;
+  border: 0; border-bottom: 1px solid var(--border); padding: 0 0 1px; margin: 6px 0 2px; cursor: pointer;
+}
+.f1-drill:hover { color: var(--red); border-bottom-color: var(--red); }
+.f1-drill:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .f1-counter.f1-tick { animation: f1Tick 420ms var(--f1-ease) both; }
 @keyframes f1Tick { from { opacity: .25; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 

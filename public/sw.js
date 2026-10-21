@@ -28,7 +28,7 @@
  * ===================================================================== */
 'use strict';
 
-const VERSION = 'f1-analyzer-v2';
+const VERSION = 'f1-analyzer-v4';
 const SHELL = [
   '/',
   '/styles.css',

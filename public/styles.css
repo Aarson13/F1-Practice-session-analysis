@@ -20,6 +20,17 @@
 
 /* ============================ A. DESIGN TOKENS ============================ */
 :root {
+  /* Motion: the shared tiers and easings every site declares, so a duration
+     is mapped to a tier rather than written into a rule. The tiers are
+     micro / standard / complex / page; the easings are enter / exit /
+     transform. */
+  --motion-duration-micro: 100ms;
+  --motion-duration-standard: 200ms;
+  --motion-duration-complex: 400ms;
+  --motion-duration-page: 600ms;
+  --motion-ease-enter: cubic-bezier(.16, 1, .3, 1);
+  --motion-ease-exit: cubic-bezier(.7, 0, .84, 0);
+  --motion-ease-transform: cubic-bezier(.4, 0, .2, 1);
   /* UI: spec palette — red accent, near-black bg, solid-ish cards */
   --red: #DC0000;
   --red-glow: #ff2a2a;
@@ -270,8 +281,11 @@ body {
   align-items: center; justify-content: space-between; gap: 10px;
 }
 .footer-line { margin: 0; color: var(--muted); font-size: 12.5px; letter-spacing: 0.02em; }
-.footer-line a { color: var(--rosso-glow); text-decoration: none; }
-.footer-line a:hover { text-decoration: underline; }
+/* Underlined at rest, not only on hover: a red link on the footer's grey prose
+ * is 1.4:1 against the surrounding text, and axe's link-in-text-block rule needs
+ * a non-colour distinction (or 3:1). */
+.footer-line a { color: var(--rosso-glow); text-decoration: underline; text-underline-offset: 2px; }
+.footer-line a:hover { text-decoration-thickness: 2px; }
 .footer-line strong { color: var(--text); }
 .footer-sep { margin: 0 8px; color: var(--faint); }
 .footer-top {
@@ -816,6 +830,9 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 .hairline-figure > svg :where(.dot.m) { fill: var(--hairline-edge); }
 .hairline-figure > svg :where(.dot.off) { fill: var(--hairline-lo); }
 .hairline-card { display: grid; gap: 8px; }
+/* The figure is drawn at 400px wide; centre it (and its read-out) in the card. */
+.hairline-card .hairline-figure { margin-inline: auto; }
+.hairline-card .hairline-read { justify-self: center; }
 .hairline-read {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
