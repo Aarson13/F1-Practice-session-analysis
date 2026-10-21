@@ -844,3 +844,7 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
 @media (prefers-reduced-motion: reduce) {
   .hairline-figure > svg :where(path, polygon, ellipse, line) { transition: none; }
 }
+/* The tab strip is sticky UNDER the nav, so a tab that is scrolled to
+   would sit under the nav and the click would land on the nav instead of
+   the tab. The scroll margin leaves the nav's height clear. */
+#resultTabs, #resultTabs sl-tab { scroll-margin-top: calc(var(--nav-h) + 24px); }
