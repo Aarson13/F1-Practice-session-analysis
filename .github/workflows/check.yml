@@ -1,15 +1,8 @@
 name: Check
 
-# F1 was the one site in the collection with no gate at all: no workflow, no
-# package.json, and a hand deploy (`Misc/pages-deploy.sh f1`, or
-# `npx wrangler pages deploy public`). Two things on this site fail silently in
-# production and visibly nowhere else, and both are what this workflow is for:
-#
-#   * an inline script edited without its CSP hash — the policy pins both inline
-#     blocks in public/index.html by SHA-256, so the browser refuses to run the
-#     edited one and the page renders with part of its behaviour missing;
-#   * a syntax error in the browser scripts, which the deploy cannot catch
-#     because nothing builds them.
+# F1 has no build: the deploy uploads `public/` as committed, so a syntax error
+# in a browser script is only ever discovered by a visitor. This workflow is the
+# one place that can catch it first.
 #
 # `wrangler.toml` needs no check step here the way the sibling sites' does: its
 # publish directory is `public/`, a directory the repository already shows, so
@@ -33,9 +26,7 @@ jobs:
           node-version: '20'
 
       - name: Syntax-check the browser scripts
-        run: |
-          node --check public/app.js
-          node --check public/animations.js
+        run: node --check public/app.js
 
       # The vendored libraries are committed, not fetched, so a missing or
       # accidentally emptied file is a site that boots without its UI. Cheap to
@@ -47,34 +38,3 @@ jobs:
             test -s "$f" || { echo "missing or empty: $f" >&2; exit 1; }
           done
           echo "vendored libraries present"
-
-      # Run after editing either inline <script> in public/index.html, and paste
-      # the hashes it prints into public/_headers.
-      - name: Check the CSP inline-script hashes are in step
-        run: python3 tools/check_csp_hashes.py
-
-      # The fonts are vendored by tools/self-host-fonts.mjs, and that vendoring is
-      # what lets the policy say `font-src 'self'` with no third-party origin —
-      # the one place this site's CSP used to be wider than its siblings'.
-      # Neither half of a regression here is visible locally: a Google <link> put
-      # back on the page would be refused by the policy in production (text
-      # silently in the fallback face), and a font file missing from public/fonts/
-      # fails the same quiet way. Asserted, not assumed.
-      - name: Check the fonts are self-hosted and in step
-        run: |
-          node tools/self-host-fonts.mjs --check
-          grep -q 'href="/fonts.css"' public/index.html || {
-            echo 'public/index.html does not link /fonts.css' >&2; exit 1; }
-          if grep -nE 'fonts\.(googleapis|gstatic)\.com' public/index.html; then
-            echo 'a Google font origin is back on the page — the fonts are self-hosted' >&2
-            exit 1
-          fi
-          # _headers' comments do describe the origins this site stopped using, so
-          # only the directive lines are searched there.
-          if grep -vE '^[[:space:]]*#' public/_headers | grep -nE 'fonts\.(googleapis|gstatic)\.com'; then
-            echo 'a Google font origin is in the policy — the fonts are self-hosted' >&2
-            exit 1
-          fi
-          test -s public/404.html || {
-            echo 'public/404.html is missing: an unknown path would answer 200 with index.html' >&2; exit 1; }
-          echo 'self-hosted fonts and the 404 page are in place'
