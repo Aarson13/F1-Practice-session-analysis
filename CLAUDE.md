@@ -16,7 +16,11 @@ checks that are deliberately deferred.
 | `public/app.js` | OpenF1 fetching, pacing/retry, telemetry math, Tabulator grids, ECharts traces, canvas maps, CSV, share hash |
 | `public/styles.css` | the site's own design tokens and layout |
 | `public/_headers` | caching + the strict CSP |
+| `public/about.html`, `contact.html`, `privacy.html` | the trust pages, sharing `styles.css` + `pages.css` |
+| `public/llms.txt` | the agent guide and when-to-use guidance |
 | `functions/` | Pages Functions: `[[path]].js` → `_router.js` |
+| `functions/_agent-docs.js` | Markdown bodies, `Accept` negotiation, 404 and header helpers |
+| `tests/agent-docs.test.mjs` | `node:test` coverage for the agent surfaces |
 | `tools/` | verification and asset helpers |
 
 
@@ -25,17 +29,18 @@ checks that are deliberately deferred.
 `/` + in-page section anchors. `#y=<year>&m=<meeting>&s=<session>` restores an
 exact analysis (`app.js` `saveShareHash` / `loadFromHash`); Reset strips the
 hash with `replaceState`. Result tabs are UI state, not routes — do not give them
-hashes.
+hashes. `/about`, `/contact` and `/privacy` are real pages; each negotiates
+Markdown at the same URL and has a `.md` alias. Result tabs are not routes.
 
 ## Commands
 
 ```
-node --check public/app.js && node --check public/animations.js
-python tools/check_csp_hashes.py
+node --check public/app.js
+node --test tests/agent-docs.test.mjs
 npx wrangler pages deploy public   # or Misc/pages-deploy.sh f1
 ```
 
-No build step, no package.json, no test runner in this repo. The repository
-belongs to another GitHub account, so Cloudflare's Git integration is not
-connected; deploys are manual until that authorization exists.
+No build step and no package.json; `node:test` runs the agent-surface suite
+directly. The repository belongs to another GitHub account, so Cloudflare's Git
+integration is not connected; deploys are manual until that authorization exists.
 

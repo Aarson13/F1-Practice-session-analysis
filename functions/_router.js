@@ -1,12 +1,12 @@
 /**
  * F1 Session Analyzer — the routing half of this site's Pages Function.
  *
- * One route, deliberately: `POST /api/feedback` (the feedback box in
- * `public/components.js`). Anything else — every page, stylesheet, script,
- * font, asset and the 404 document — is served by `env.ASSETS`, which is the
- * same static upload Pages served before this function existed. No request for
- * `public/` goes through any handler here, so nothing about the app's own
- * delivery changed.
+ * One API route: `/api/feedback`. Everything else is served by `env.ASSETS`,
+ * the same static upload Pages served before this function existed — with an
+ * agent layer on top: `/`, `/about`, `/contact` and `/privacy` negotiate
+ * `text/markdown`, their `.md` aliases always answer Markdown, and an unmatched
+ * path gets a Markdown 404 when one is requested. The bodies and negotiation
+ * live in `_agent-docs.js`; the app's own delivery is unchanged.
  *
  * The KV namespace is handed to the feedback module the same way the sibling
  * RBI site does it: a namespace is an object, not a string, so it cannot ride
@@ -17,6 +17,15 @@
  */
 
 import feedbackModule from './api/feedback.js';
+import {
+  DOCUMENTS,
+  MARKDOWN_ALIASES,
+  NOT_ACCEPTABLE_MARKDOWN,
+  markdownResponse,
+  mergeVary,
+  negotiate,
+  notFoundMarkdown,
+} from './_agent-docs.js';
 
 const ROUTES = {
   '/api/feedback': feedbackModule,
@@ -45,11 +54,80 @@ async function toEvent(request, url) {
   return event;
 }
 
+/** Fetch a negotiated HTML document, falling back to its .html file if the
+ *  assets layer does not resolve the clean URL itself. */
+async function fetchDocument(env, request, document) {
+  let response = await env.ASSETS.fetch(request);
+  if (response.status === 404 && document.file) {
+    const url = new URL(request.url);
+    url.pathname = document.file;
+    response = await env.ASSETS.fetch(new Request(url, request));
+  }
+  return response;
+}
+
+function withDocHeaders(response, document) {
+  const headers = new Headers(response.headers);
+  mergeVary(headers);
+  if (response.status >= 200 && response.status < 300) {
+    headers.set(
+      'Link',
+      `<${document.alternate}>; rel="alternate"; type="text/markdown", ` +
+        `</llms.txt>; rel="describedby"; type="text/plain"`
+    );
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function withVary(response) {
+  const headers = new Headers(response.headers);
+  mergeVary(headers);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+async function serveDocument(request, env, pathname) {
+  const alias = MARKDOWN_ALIASES.get(pathname);
+  if (alias) return markdownResponse(alias, 200, request.method);
+
+  const document = DOCUMENTS.get(pathname);
+  if (!document) return null;
+
+  const choice = negotiate(request.headers.get('Accept'));
+  if (choice === 'markdown') return markdownResponse(document.markdown, 200, request.method);
+  if (choice === 'not-acceptable') {
+    return markdownResponse(NOT_ACCEPTABLE_MARKDOWN, 406, request.method);
+  }
+  return withDocHeaders(await fetchDocument(env, request, document), document);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const mod = ROUTES[url.pathname];
-    if (!mod) return env.ASSETS.fetch(request);
+    if (!mod) {
+      if (request.method === 'GET' || request.method === 'HEAD') {
+        const document = await serveDocument(request, env, url.pathname);
+        if (document) return document;
+
+        const response = await env.ASSETS.fetch(request);
+        if (response.status === 404) {
+          if (negotiate(request.headers.get('Accept')) === 'markdown') {
+            return markdownResponse(notFoundMarkdown(url.pathname), 404, request.method);
+          }
+          return withVary(response);
+        }
+        return response;
+      }
+      return env.ASSETS.fetch(request);
+    }
 
     wireBindings(env);
 

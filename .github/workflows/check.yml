@@ -28,6 +28,12 @@ jobs:
       - name: Syntax-check the browser scripts
         run: node --check public/app.js
 
+      - name: Run agent-surface tests
+        # Markdown negotiation, the .md aliases, the Markdown 404, metadata and
+        # the trust pages. The router is exercised with an ASSETS stub, so this
+        # needs no OpenF1 key and no Wrangler.
+        run: node --test tests/agent-docs.test.mjs
+
       # The vendored libraries are committed, not fetched, so a missing or
       # accidentally emptied file is a site that boots without its UI. Cheap to
       # assert and impossible to notice otherwise until a visitor hits it.

@@ -1,0 +1,85 @@
+# F1 Session Analyzer
+
+> An independent, browser-based tool for turn-by-turn Formula 1 session analysis. Pick a year,
+> Grand Prix and session, and it compares every driver's best lap at the same point on track to
+> rank speed through each corner, for drivers and teams. Data is fetched live from the OpenF1 API
+> in the visitor's browser; this site stores no F1 data.
+
+Built by Parth Soni. Not affiliated with Formula 1, the FIA, any team, any circuit or OpenF1.
+It is an analysis tool, not official timing and not a prediction service.
+
+## When to use this
+
+Use F1 Session Analyzer when the task is one of these:
+
+- **Compare two drivers corner by corner.** Analyze the session, then use the Head-to-Head tab:
+  it gives the speed delta at every corner and draws the duel on a track map.
+- **Find who is fastest through each turn.** The Corners tab ranks each corner window and names
+  the fastest driver and team; Drivers & Teams counts corner wins per team.
+- **Check a session's classification or best laps.** Classification shows the official result;
+  Drivers shows best-lap times, compounds, gaps and team colours.
+- **Study race pace and tyre degradation.** For a Race, Race Pace gives stint averages and a
+  least-squares degradation slope, excluding out-laps and incident laps.
+- **See how a weekend shifted.** Weekend analyses every session of the selected Grand Prix at a
+  lighter top-five depth and compares corner ownership session by session.
+- **Inspect sectors, traps or speed traces.** Sectors gives intermediate splits and finish-line
+  traps; Traces overlays speed against lap progress with zoom and legend toggles.
+- **Export a table.** Every result grid has a CSV button; CSVs are generated in the browser.
+
+Do **not** use it for live timing, an official race result, betting or predictions. It can only
+analyze sessions that OpenF1 has already published.
+
+## How to call it
+
+This is an interactive app, not a JSON API. There is no server-side session or lap endpoint;
+the browser queries OpenF1 directly. Agents can read the description and method without running
+the app:
+
+- HTML at `/`, `/about`, `/contact`, `/privacy` for a browser.
+- The same URLs with `Accept: text/markdown` return Markdown with `Vary: Accept`.
+- `/index.md`, `/about.md`, `/contact.md`, `/privacy.md` always return Markdown.
+- `/llms.txt` is this guide; `/sitemap.xml` lists the pages.
+
+A shared analysis is a URL fragment on the homepage, not a separate route:
+`/#y=2024&m=<meeting_key>&s=<session_key>`. `COMBINED` as the session key pools FP1–FP3.
+The fragment is client-side; it is not sent in the HTTP request.
+
+```bash
+curl -sS -H 'Accept: text/markdown' https://f1-practice-session-analysis.pages.dev/
+curl -sS https://f1-practice-session-analysis.pages.dev/llms.txt
+```
+
+## Method
+
+Each driver's fastest non-pit-out lap in the selected session is resampled to 1,000 evenly
+spaced distance points, so every driver is compared at the same point on track. Corners come
+from the circuit's official geometry; a corner is a window of about ±1.2% of lap distance
+around its apex and is ranked by average speed through that window. A team's score is the mean
+of its drivers. Race-pace slopes fit clean stint laps with least squares.
+
+## Data, freshness and limits
+
+Meetings, sessions, drivers, laps, car data, stints, results and circuit geometry come from the
+public OpenF1 API at request time. OpenF1 is an independent community project; its coverage can
+vary by session, and a session not yet published cannot be analyzed. The free API allows
+roughly three requests per second, so an all-drivers run takes about a minute. The app paces and
+retries requests, but rate limits or telemetry gaps can still make a run fail or exclude a
+driver. Fuel load, tyre age, engine modes, track evolution and team instructions are not in the
+data and are not modelled. Small gaps can be sampling noise.
+
+## Pages
+
+- [Analyzer](https://f1-practice-session-analysis.pages.dev/) — pick a session and analyze it.
+- [Markdown home](https://f1-practice-session-analysis.pages.dev/index.md)
+- [About](https://f1-practice-session-analysis.pages.dev/about) — method, sources and limits.
+- [Contact](https://f1-practice-session-analysis.pages.dev/contact) — corrections and bugs.
+- [Privacy](https://f1-practice-session-analysis.pages.dev/privacy) — requests and local state.
+- [Sitemap](https://f1-practice-session-analysis.pages.dev/sitemap.xml)
+- [GitHub repository](https://github.com/Aarson13/F1-Practice-session-analysis)
+
+## Contact
+
+- Email: soni.soni.parth@gmail.com (data corrections, privacy, general questions)
+- GitHub issues: https://github.com/Aarson13/F1-Practice-session-analysis/issues
+
+For an official result or a live session, use Formula 1's own timing and classification.

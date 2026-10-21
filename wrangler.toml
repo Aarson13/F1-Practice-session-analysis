@@ -28,10 +28,11 @@ compatibility_date = "2026-10-01"
 
 # There is still no Worker and no bundling, but there IS a Pages Function now:
 # `functions/[[path]].js` catches every request and hands `/api/feedback` to
-# `functions/api/feedback.js`; everything else goes to `env.ASSETS`. Pages
-# compiles that directory as part of the deploy, so `wrangler pages deploy
-# public` remains the whole publish step and `wrangler deploy` is still not a
-# command this repository has any use for.
+# `functions/api/feedback.js`; everything else goes to `env.ASSETS`, with
+# Markdown negotiation for `/`, `/about`, `/contact` and `/privacy` layered on
+# top (see `functions/_agent-docs.js`). Pages compiles that directory as part of
+# the deploy, so `wrangler pages deploy public` remains the whole publish step
+# and `wrangler deploy` is still not a command this repository has any use for.
 
 # The shared feedback namespace. /api/feedback answers 503 until this binding
 # exists, and that is deliberate: a route that silently accepted feedback it

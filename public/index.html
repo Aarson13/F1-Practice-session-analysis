@@ -4,7 +4,81 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis</title>
-<meta name="description" content="Live F1 session analyzer. Pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) and get turn-by-turn driver and team corner analysis. All data is fetched live from the OpenF1 API on page load — nothing is stored." />
+<meta name="description" content="F1 Session Analyzer: pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) for turn-by-turn driver and team corner analysis. Data comes live from OpenF1; nothing is stored." />
+<meta name="theme-color" content="#090b10" />
+<link rel="canonical" href="https://f1-practice-session-analysis.pages.dev/" />
+<link rel="alternate" type="text/markdown" href="/index.md" title="Markdown version" />
+<link rel="describedby" href="/llms.txt" type="text/plain" />
+<meta property="og:site_name" content="F1 Session Analyzer" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis" />
+<meta property="og:description" content="Compare every driver and team through every corner of any F1 session. Practice, Qualifying, Sprint and Race, analysed live from OpenF1." />
+<meta property="og:url" content="https://f1-practice-session-analysis.pages.dev/" />
+<meta property="og:image" content="https://f1-practice-session-analysis.pages.dev/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="F1 Session Analyzer — turn-by-turn driver and team analysis" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="F1 Session Analyzer" />
+<meta name="twitter:description" content="Turn-by-turn F1 driver and team analysis for every session, from live OpenF1 data." />
+<meta name="twitter:image" content="https://f1-practice-session-analysis.pages.dev/og-image.png" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://f1-practice-session-analysis.pages.dev/#organization",
+      "name": "F1 Session Analyzer",
+      "url": "https://f1-practice-session-analysis.pages.dev/",
+      "description": "An independent, browser-based tool for turn-by-turn Formula 1 session analysis, covering drivers, teams, corners, race pace and speed traces.",
+      "email": "soni.soni.parth@gmail.com",
+      "founder": { "@type": "Person", "name": "Parth Soni" },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "email": "soni.soni.parth@gmail.com",
+        "url": "https://f1-practice-session-analysis.pages.dev/contact",
+        "availableLanguage": ["English"]
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dublin",
+        "addressCountry": "IE"
+      },
+      "sameAs": ["https://github.com/Aarson13/F1-Practice-session-analysis"]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://f1-practice-session-analysis.pages.dev/#website",
+      "name": "F1 Session Analyzer",
+      "url": "https://f1-practice-session-analysis.pages.dev/",
+      "inLanguage": "en",
+      "publisher": { "@id": "https://f1-practice-session-analysis.pages.dev/#organization" }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://f1-practice-session-analysis.pages.dev/#app",
+      "name": "F1 Session Analyzer",
+      "url": "https://f1-practice-session-analysis.pages.dev/",
+      "applicationCategory": "SportsApplication",
+      "operatingSystem": "Any (web browser)",
+      "isAccessibleForFree": true,
+      "description": "Turn-by-turn analysis of Formula 1 sessions: fastest driver and team at every corner, head-to-head duels, race pace, speed traces and official classification.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+      "author": { "@type": "Person", "name": "Parth Soni" },
+      "publisher": { "@id": "https://f1-practice-session-analysis.pages.dev/#organization" },
+      "featureList": [
+        "Turn-by-turn driver and team speed ranking",
+        "Head-to-head corner deltas and duel map",
+        "Race pace and tyre degradation by stint",
+        "Speed traces, sectors and speed traps",
+        "Official session classification and CSV export"
+      ]
+    }
+  ]
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -207,6 +281,11 @@
     </sl-tab-group>
   </section>
 </main>
+
+<footer class="site-footer">
+  <p><strong>F1 Session Analyzer</strong> is an independent, browser-based tool for turn-by-turn Formula 1 analysis: every driver and team, every corner, from practice to the race. It is unofficial and not affiliated with Formula 1, the FIA, any team or OpenF1.</p>
+  <p><a href="/about">About the analyzer</a> &middot; <a href="/contact">Contact and corrections</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/llms.txt">llms.txt</a> &middot; <a href="https://github.com/Aarson13/F1-Practice-session-analysis">GitHub</a></p>
+</footer>
 
 <script src="vendor/tabulator.min.js"></script>
 <script src="vendor/echarts.min.js"></script>

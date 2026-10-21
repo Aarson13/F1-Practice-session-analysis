@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" class="sl-theme-dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Privacy | F1 Session Analyzer</title>
+<meta name="description" content="What F1 Session Analyzer requests, what it keeps in your browser and what it does not collect. No accounts, no analytics, no stored race data." />
+<meta name="theme-color" content="#090b10" />
+<link rel="canonical" href="https://f1-practice-session-analysis.pages.dev/privacy" />
+<link rel="alternate" type="text/markdown" href="/privacy.md" title="Markdown version" />
+<link rel="describedby" href="/llms.txt" type="text/plain" />
+<meta property="og:site_name" content="F1 Session Analyzer" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Privacy | F1 Session Analyzer" />
+<meta property="og:description" content="OpenF1 requests, Google Fonts, hosting logs and share links: the small amount of data involved in using the analyzer." />
+<meta property="og:url" content="https://f1-practice-session-analysis.pages.dev/privacy" />
+<meta property="og:image" content="https://f1-practice-session-analysis.pages.dev/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="F1 Session Analyzer — turn-by-turn driver and team analysis" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Privacy | F1 Session Analyzer" />
+<meta name="twitter:description" content="Requests, local state and rights for the independent F1 session analyzer." />
+<meta name="twitter:image" content="https://f1-practice-session-analysis.pages.dev/og-image.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/pages.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="flag">🏁</span>
+    <div>
+      <span class="brand-title">F1 Session <em>Analyzer</em></span>
+      <p>Turn-by-turn driver &amp; team corner analysis</p>
+    </div>
+  </a>
+  <nav class="page-nav" aria-label="Site">
+    <a href="/">Analyzer</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/privacy" aria-current="page">Privacy</a>
+  </nav>
+</header>
+
+<main class="page prose">
+  <p class="page-kicker">Privacy</p>
+  <h1>Privacy notice</h1>
+  <p class="page-meta">Last updated 21 October 2026 &bull; Parth Soni</p>
+
+  <p class="page-lede">
+    F1 Session Analyzer has no accounts, no sign-in, no advertising and no analytics product. This
+    page explains the small amount of data involved when you use it: the requests your browser
+    makes, the state it keeps locally, and the choices you have.
+  </p>
+
+  <section>
+    <h2>What happens in your browser</h2>
+    <p>
+      When you analyze a session, your browser calls the public
+      <a href="https://openf1.org" rel="noopener">OpenF1 API</a> directly for meetings, sessions,
+      drivers, laps, telemetry, stints, results and circuit geometry. Those requests go from your
+      device to <code>api.openf1.org</code>; OpenF1 can see your IP address, user agent and the
+      requested URL, under its own privacy terms. This site does not proxy or store the responses.
+      Circuit images and driver photos shown in the interface are loaded from URLs OpenF1 publishes.
+    </p>
+    <p>
+      The page also loads its fonts from Google Fonts (<code>fonts.googleapis.com</code> and
+      <code>fonts.gstatic.com</code>), so Google receives the request metadata needed to serve
+      them. Everything else, including the app, its styles, charts, grids and icons, is served from
+      this site.
+    </p>
+  </section>
+
+  <section>
+    <h2>Local state and sharing</h2>
+    <p>
+      The analyzer does not use cookies, <code>localStorage</code> or <code>sessionStorage</code> to
+      keep an analysis. A share link puts the selected year, meeting and session in the URL
+      fragment (<code>#y=…&amp;m=…&amp;s=…</code>). Fragments are not sent to the server in an HTTP
+      request; they stay in the address bar and in the link you copy. Clearing the fragment or
+      pressing Reset removes it.
+    </p>
+    <p>
+      CSV exports are generated in your browser and downloaded to your device. Nothing is uploaded.
+      The interface does not ask for a name, email address or any other personal detail.
+    </p>
+  </section>
+
+  <section>
+    <h2>Hosting and server logs</h2>
+    <p>
+      The site is hosted on Cloudflare Pages with a small Pages Function. Cloudflare processes the
+      request needed to serve a page or the feedback route, including IP address, URL, user agent
+      and timestamp, under its own privacy terms, and may keep security and operational logs. The
+      maintainer does not run an analytics product over those logs, does not build visitor profiles
+      and does not sell or share them.
+    </p>
+  </section>
+
+  <section>
+    <h2>Feedback route</h2>
+    <p>
+      The deployment has a feedback route for a message that may be added to the interface later.
+      It accepts a message only when its storage binding is configured; otherwise it returns an
+      error instead of silently losing the message. A stored message includes the text submitted
+      and anti-abuse metadata such as a short-lived throttle key and a timestamp. It is used to
+      improve the analyzer and is not published. There is no feedback form in the current
+      interface, so this only applies if the route is called directly or a form is added later.
+    </p>
+  </section>
+
+  <section>
+    <h2>Email</h2>
+    <p>
+      If you email <a href="mailto:soni.soni.parth@gmail.com">soni.soni.parth@gmail.com</a>, the
+      message and your address are processed by Gmail so it can be delivered and answered. They are
+      used to reply and keep a record of the conversation; they are not added to a marketing list
+      and are not sold. Ask for a message to be deleted and it will be, unless a legal obligation
+      requires it to be kept.
+    </p>
+  </section>
+
+  <section>
+    <h2>Your rights and changes</h2>
+    <p>
+      Under the GDPR you can ask what personal data is held about you, request a copy, ask for
+      correction or erasure, or object to processing. Use
+      <a href="mailto:soni.soni.parth@gmail.com">soni.soni.parth@gmail.com</a>. You also have the
+      right to complain to the Irish Data Protection Commission
+      (<a href="https://www.dataprotection.ie/" rel="noopener">dataprotection.ie</a>). If this notice
+      changes, the date at the top changes with it. General corrections are covered on
+      <a href="/contact">Contact</a>.
+    </p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>F1 Session Analyzer is independent and unofficial, and is not affiliated with Formula 1, the FIA, any team or OpenF1.</p>
+  <p><a href="/">Analyzer</a> &middot; <a href="/about">About</a> &middot; <a href="/contact">Contact</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/llms.txt">llms.txt</a></p>
+</footer>
+
+</body>
+</html>

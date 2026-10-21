@@ -1,14 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  One entry, because this site is one page: the year, Grand Prix and session
-  selectors are query parameters on it, not addresses of their own, so they are
-  not separate URLs and must not be listed as if they were.
+  The analyzer plus its three trust pages. Year/Grand Prix/session selections
+  are URL fragments on `/`, not addresses of their own, so they are not listed
+  as separate URLs. Markdown aliases are alternates, not pages.
 
-  No <lastmod>: nothing here records when the page last changed, and a guessed
+  No <lastmod>: nothing here records when a page last changed, and a guessed
   date is worse than an absent one.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://f1-practice-session-analysis.pages.dev/</loc>
+  </url>
+  <url>
+    <loc>https://f1-practice-session-analysis.pages.dev/about</loc>
+  </url>
+  <url>
+    <loc>https://f1-practice-session-analysis.pages.dev/contact</loc>
+  </url>
+  <url>
+    <loc>https://f1-practice-session-analysis.pages.dev/privacy</loc>
   </url>
 </urlset>

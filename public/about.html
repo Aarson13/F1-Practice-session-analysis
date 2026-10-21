@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" class="sl-theme-dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>About | F1 Session Analyzer</title>
+<meta name="description" content="About F1 Session Analyzer: an independent, browser-based tool for turn-by-turn Formula 1 session analysis using live OpenF1 data, with no stored race data." />
+<meta name="theme-color" content="#090b10" />
+<link rel="canonical" href="https://f1-practice-session-analysis.pages.dev/about" />
+<link rel="alternate" type="text/markdown" href="/about.md" title="Markdown version" />
+<link rel="describedby" href="/llms.txt" type="text/plain" />
+<meta property="og:site_name" content="F1 Session Analyzer" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="About | F1 Session Analyzer" />
+<meta property="og:description" content="How the analyzer compares drivers at every corner, where the telemetry comes from, and what the results cannot tell you." />
+<meta property="og:url" content="https://f1-practice-session-analysis.pages.dev/about" />
+<meta property="og:image" content="https://f1-practice-session-analysis.pages.dev/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="F1 Session Analyzer — turn-by-turn driver and team analysis" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="About | F1 Session Analyzer" />
+<meta name="twitter:description" content="Method, sources and limits of the independent F1 session analyzer." />
+<meta name="twitter:image" content="https://f1-practice-session-analysis.pages.dev/og-image.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/pages.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="flag">🏁</span>
+    <div>
+      <span class="brand-title">F1 Session <em>Analyzer</em></span>
+      <p>Turn-by-turn driver &amp; team corner analysis</p>
+    </div>
+  </a>
+  <nav class="page-nav" aria-label="Site">
+    <a href="/">Analyzer</a>
+    <a href="/about" aria-current="page">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/privacy">Privacy</a>
+  </nav>
+</header>
+
+<main class="page prose">
+  <p class="page-kicker">About</p>
+  <h1>About F1 Session Analyzer</h1>
+  <p class="page-meta">Independent project by Parth Soni &bull; Last updated 21 October 2026</p>
+
+  <p class="page-lede">
+    F1 Session Analyzer looks past the headline lap time of a Formula 1 session. It compares every
+    driver's best lap at the same point on track and shows who is quickest through each corner,
+    which team owns each part of the lap, and how the picture changes between sessions of the same
+    weekend.
+  </p>
+
+  <section>
+    <h2>What it covers</h2>
+    <ul>
+      <li><strong>Every session type:</strong> Practice 1–3, Qualifying, Sprint Qualifying, Sprint and Race, from 2023 onward, subject to OpenF1's published coverage.</li>
+      <li><strong>Turn-by-turn ranking:</strong> the fastest driver and team at every corner, with the top three and their gaps, plus a track map coloured by the fastest team per segment.</li>
+      <li><strong>Head-to-head:</strong> any two analyzed drivers, corner by corner, with a duel map and speed deltas across the lap.</li>
+      <li><strong>Drivers and teams:</strong> best laps, tyre compounds, gaps, corner wins and per-team averages.</li>
+      <li><strong>Sectors, traps and traces:</strong> intermediate splits, finish-line speed traps and overlaid speed traces against lap progress.</li>
+      <li><strong>Race pace:</strong> stint-average pace and a least-squares tyre-degradation slope, with out-laps and incident laps excluded.</li>
+      <li><strong>Weekend view:</strong> a lighter top-five analysis of every session of the selected Grand Prix, showing how corner dominance shifted from practice to qualifying to the race.</li>
+      <li><strong>Classification and CSV:</strong> the official session result and CSV export from every table.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Where the data comes from</h2>
+    <p>
+      The browser calls the public <a href="https://openf1.org" rel="noopener">OpenF1 API</a> for
+      meetings, sessions, drivers, laps, car data, stints, results and the circuit geometry URL.
+      No F1 data is stored by this site and no server-side database is involved. OpenF1 is an
+      independent community project, so its coverage, field names and availability can change; a
+      session that has not been published yet will not analyze.
+    </p>
+  </section>
+
+  <section>
+    <h2>How the comparison works</h2>
+    <p>
+      Speed samples arrive over time, and drivers reach the same corner at different times. The app
+      integrates speed into distance travelled and resamples each best lap to 1,000 evenly spaced
+      points, so point 500 is the same piece of asphalt for every driver. Apex positions come from
+      the circuit geometry; each corner is a window of about ±1.2% of lap distance around its apex.
+      The ranking within that window is average speed, so a higher number means the driver carried
+      more speed through the turn. A team's score is the mean of its drivers, and corner wins count
+      the windows a team topped.
+    </p>
+    <p>
+      Tyre compounds come from the session's stint list matched to each best lap. Sector times and
+      speed traps are the official splits of that same lap. Race-pace slopes fit a straight line
+      through the clean laps of each stint; they are a description of the available data, not a
+      prediction.
+    </p>
+  </section>
+
+  <section>
+    <h2>What it is not</h2>
+    <p>
+      This is a fan-built analysis tool, not an official timing service. It is not affiliated with
+      Formula 1, the FIA, any team, any circuit or OpenF1. It does not show live telemetry, predict
+      qualifying or race outcomes, or account for fuel load, tyre age, engine modes, track evolution
+      or team instructions that are not in the public data.
+    </p>
+    <p>
+      Treat small gaps with care: a few tenths can be noise from telemetry sampling, traffic or a
+      driver's out-lap. For an official result, use Formula 1's own timing and classification.
+    </p>
+    <p class="callout">
+      <strong>Corrections welcome.</strong> If a session is missing or a chart looks wrong, email
+      <a href="mailto:soni.soni.parth@gmail.com">soni.soni.parth@gmail.com</a> or
+      <a href="https://github.com/Aarson13/F1-Practice-session-analysis/issues">open a GitHub issue</a>
+      with the year, Grand Prix, session and share fragment. More detail is on
+      <a href="/contact">Contact</a>.
+    </p>
+  </section>
+
+  <section>
+    <h2>Keep reading</h2>
+    <p>
+      See <a href="/contact">Contact</a> for corrections and bug reports, or
+      <a href="/privacy">Privacy</a> for the requests the page makes and the state it keeps. Agents
+      can read <a href="/llms.txt">llms.txt</a> for a compact guide and the Markdown version of this
+      page at <a href="/about.md">/about.md</a>.
+    </p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>F1 Session Analyzer is independent and unofficial, and is not affiliated with Formula 1, the FIA, any team or OpenF1.</p>
+  <p><a href="/">Analyzer</a> &middot; <a href="/about">About</a> &middot; <a href="/contact">Contact</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/llms.txt">llms.txt</a></p>
+</footer>
+
+</body>
+</html>

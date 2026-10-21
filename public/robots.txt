@@ -1,4 +1,4 @@
-# One public page, and everything it serves is meant to be crawled.
+# The analyzer and its trust pages, all meant to be crawled.
 #
 # This file exists to say that in the site's own words. Without it the platform
 # answers /robots.txt with its own injected boilerplate, which reads as this

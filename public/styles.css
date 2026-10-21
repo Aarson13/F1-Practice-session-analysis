@@ -356,3 +356,25 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   min-height: 40px;
   padding: 0 12px;
 }
+
+/* ---------------- site footer ----------------
+   Kept outside the app's result state so the trust links are always present,
+   including before a session has been analyzed. ---------------------------- */
+.site-footer {
+  position: relative;
+  z-index: 1;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 22px 20px 40px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.site-footer p { margin: 0 0 5px; max-width: 92ch; }
+.site-footer strong { color: var(--muted); }
+.site-footer a { color: var(--muted); text-decoration: none; }
+.site-footer a:hover { color: var(--text); }
+@media (max-width: 720px) {
+  .site-footer { padding: 18px 12px 32px; }
+}
