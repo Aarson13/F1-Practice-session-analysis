@@ -854,3 +854,17 @@ section[id], [id].card, #trackMap, #h2hMap, #cornerGrid, #driverGrid, #teamGrid,
    the nav's height clear for both. */
 html { scroll-padding-top: calc(var(--nav-h) + 18px); }
 
+/* f1-click-through: two full-screen surfaces that are not there when they
+   look like they are. The navbar is FIXED, so it sits on top of whatever
+   scrolls under it - and a tab scrolled up under the bar could not be
+   clicked at all, because the click landed on the bar. The loader covers the
+   whole viewport at opacity 0 while it is off, and an invisible overlay that
+   still takes the pointer is the same problem in a different place.
+
+   Both are transparent to the pointer when they are not meant to receive it,
+   and take it back when they are. The navbar's own children take it back
+   individually, so the bar still behaves like a bar. */
+.navbar { pointer-events: none; }
+.navbar * { pointer-events: auto; }
+.loader { pointer-events: none; }
+.loader.is-on { pointer-events: auto; }
