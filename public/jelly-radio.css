@@ -1,0 +1,125 @@
+/* Jelly Radio — vanilla port of React Bits' Jelly Radio.
+ *
+ * Two ways to wear it:
+ *
+ *   default            the component paints the chips (dark pill group)
+ *   data-jelly-bare    the host paints them; only the spring, the push and the
+ *                      keyboard model are ours. Use this when adopting a chip
+ *                      row a site already styles.
+ *
+ * Theme the painted version from the host stylesheet by setting custom
+ * properties on the group (or a wrapper, or :root):
+ *
+ *   --jr-chip         unselected chip background
+ *   --jr-active       selected chip background
+ *   --jr-text         unselected text
+ *   --jr-active-text  selected text
+ *   --jr-radius       chip corner radius
+ *   --jr-h / --jr-font / --jr-px
+ *                     height, font size and horizontal padding, written by the
+ *                     script from data-jelly-size
+ *   --jr-pad-x / --jr-pad-y
+ *                     room for the swell, only when data-jelly-pad is set
+ *
+ * Only the chips are framed here: the host keeps its own group layout, so an
+ * adopted tab strip or filter row does not move when it is enhanced.
+ */
+.jelly-radio {
+  --jr-chip: #27272a;
+  --jr-active: #f5f5f5;
+  --jr-text: #f5f5f5;
+  --jr-active-text: #18181b;
+  --jr-gap: 8px;
+  --jr-radius: 18px;
+  --jr-h: 36px;
+  --jr-font: 13px;
+  --jr-px: 16px;
+  --jr-pad-x: 0px;
+  --jr-pad-y: 0px;
+  padding: var(--jr-pad-y) var(--jr-pad-x);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.jelly-radio[data-disabled] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Structural: the spring writes the transform, so the seat and the touch
+ * behaviour are ours whatever skin the host wears. */
+.jelly-radio__chip {
+  position: relative;
+  margin: 0;
+  box-sizing: border-box;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Painted skin — skipped entirely with data-jelly-bare. */
+.jelly-radio:not([data-jelly-bare]) .jelly-radio__chip {
+  height: var(--jr-h);
+  padding: 0 var(--jr-px);
+  border: 0;
+  border-radius: var(--jr-radius);
+  background: var(--jr-chip);
+  color: var(--jr-text);
+  font-size: var(--jr-font);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* The hover wash the original paints as a skin overlay. */
+.jelly-radio:not([data-jelly-bare]) .jelly-radio__chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--jr-text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .jelly-radio:not([data-jelly-bare]) .jelly-radio__chip[data-on='false']:not(:disabled):hover::before {
+    opacity: 0.11;
+  }
+}
+
+.jelly-radio:not([data-jelly-bare]) .jelly-radio__chip[data-on='true'] {
+  background: var(--jr-active);
+  color: var(--jr-active-text);
+  cursor: default;
+}
+
+.jelly-radio[data-disabled] .jelly-radio__chip,
+.jelly-radio__chip:disabled {
+  cursor: default;
+}
+
+.jelly-radio:not([data-disabled]) .jelly-radio__chip:disabled {
+  opacity: 0.4;
+}
+
+.jelly-radio__chip:focus-visible {
+  outline: 2px solid var(--jr-focus, currentColor);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jelly-radio__chip {
+    transition-duration: 0.01ms;
+  }
+
+  .jelly-radio:not([data-jelly-bare]) .jelly-radio__chip::before {
+    transition: none;
+  }
+}

@@ -170,6 +170,82 @@ function selectOptionCount(sel) {
 /* =====================================================================
  * SELECTOR FLOW: year -> grand prix -> session (all session types)
  * ===================================================================== */
+/* ---- result tabs: a Jelly Radio strip over the Shoelace group ----
+ * Shoelace renders its nav in shadow DOM, so the spring cannot reach those
+ * tabs. A light-DOM strip mirrors them, owns the visible selection, and calls
+ * `show()` on the group; `sl-tab-show` remains the source of truth, so a tab
+ * opened from anywhere (a share link, the pace unlock) moves the strip too. */
+function initResultJelly() {
+  const group = $("resultJelly");
+  const tabs = $("resultTabs");
+  if (!group || !tabs || !window.JellyRadio) return;
+  const navTabs = Array.from(tabs.querySelectorAll('sl-tab[slot="nav"]'));
+  if (!navTabs.length) return;
+
+  group.textContent = "";
+  const buttons = navTabs.map((tab) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "rtab";
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", "false");
+    button.textContent = (tab.textContent || "").trim();
+    button.dataset.panel = tab.getAttribute("panel") || "";
+    button.disabled = tab.hasAttribute("disabled");
+    group.appendChild(button);
+    return button;
+  });
+
+  const sync = (name) => {
+    const current = tabs.querySelector("sl-tab[active]");
+    const active = name || (current && current.getAttribute("panel")) || buttons[0].dataset.panel;
+    buttons.forEach((button) => {
+      const on = button.dataset.panel === active;
+      button.classList.toggle("active", on);
+      button.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  };
+
+  const reveal = (button) => {
+    const left = button.offsetLeft - (group.clientWidth - button.offsetWidth) / 2;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    group.scrollTo({ left: Math.max(0, left), behavior: reduce ? "auto" : "smooth" });
+  };
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) return;
+      tabs.show(button.dataset.panel);
+      // A disabled tab never renders a panel, so only a real switch needs scroll.
+      requestAnimationFrame(() => reveal(button));
+    });
+  });
+
+  tabs.addEventListener("sl-tab-show", (event) => {
+    sync(event.detail && event.detail.name);
+    const shown = buttons.find((button) => button.getAttribute("aria-selected") === "true");
+    if (shown) requestAnimationFrame(() => reveal(shown));
+  });
+
+  // Race Pace unlocks once an analysis lands; mirror that onto its chip.
+  new MutationObserver(() => {
+    buttons.forEach((button, index) => { button.disabled = navTabs[index].hasAttribute("disabled"); });
+  }).observe(tabs, { subtree: true, attributes: true, attributeFilter: ["disabled", "hidden"] });
+
+  // The strip is built while #results is hidden, so it has no widths to measure.
+  const results = $("results");
+  if (results) {
+    new MutationObserver(() => {
+      if (results.hidden) return;
+      const radio = JellyRadio.get(group);
+      if (radio) radio.settle();
+    }).observe(results, { attributes: true, attributeFilter: ["hidden"] });
+  }
+
+  JellyRadio.enhance(group);
+  sync();
+}
+
 async function init() {
   // Shoelace upgrades sl-select asynchronously: setting .value before the
   // definition loads is silently lost. Gate population on the definition,
@@ -210,6 +286,7 @@ async function init() {
   $("resultTabs").addEventListener("sl-tab-show", (e) => {
     refreshTab(e.detail && e.detail.name).catch((err) => console.warn(err));
   });
+  initResultJelly();
   let resizeTimer = 0;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);

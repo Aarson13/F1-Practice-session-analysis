@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="vendor/shoelace/themes/dark.css" />
 <link rel="stylesheet" href="vendor/tabulator.min.css" />    <link rel="stylesheet" href="glide-select.css" />
+    <link rel="stylesheet" href="jelly-radio.css" />
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -59,6 +60,11 @@
 
   <!-- ============ RESULTS (tabbed) ============ -->
   <section id="results" hidden>
+    <!-- The Shoelace tab nav lives in shadow DOM, where the spring cannot move
+         it. This light-DOM strip mirrors the same tabs and drives the group. -->
+    <div id="resultJelly" class="result-jelly" role="tablist" aria-label="Result views"
+         data-jelly-radio data-jelly-bare data-jelly-size="sm" data-jelly-radius="8"
+         data-jelly-swell="0.05" data-jelly-barge="2" data-jelly-shrink="0.02" data-jelly-stagger="12"></div>
     <sl-tab-group id="resultTabs" placement="top">
       <sl-tab slot="nav" panel="overview">Overview</sl-tab>
       <sl-tab slot="nav" panel="track">Track Map</sl-tab>
@@ -231,6 +237,7 @@ window.addEventListener("DOMContentLoaded", function () {
   }, 9000);
 });
 </script>
+<script src="jelly-radio.js"></script>
 <script src="app.js"></script>
 <script src="glide-select.js"></script>
 </body>
