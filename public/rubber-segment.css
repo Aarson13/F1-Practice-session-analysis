@@ -58,6 +58,17 @@
   will-change: transform, width;
 }
 
+/* Vertical adoption: the same thumb, travelling down a stacked group. Its
+ * left and width come from the chip itself, so a stack with padding keeps the
+ * thumb inside it. */
+.rubber-segment[data-rs-axis='y'] .rubber-segment__thumb {
+  top: 0;
+  left: var(--rs-left, 0px);
+  width: var(--rs-thick, 100%);
+  height: var(--rs-hh, 0px);
+  transform: translateY(var(--rs-y, 0px));
+}
+
 .rubber-segment__chip {
   position: relative;
   z-index: 1;
