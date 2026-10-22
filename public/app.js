@@ -1916,7 +1916,10 @@ function startReplay() {
   }));
   replay.t = 0;
   replay.on = true;
-  $("replayBtn").textContent = "⏸ Stop replay";
+  // The control is a switch now: aria-checked is the state, and the thumb
+  // follows it (squish-switch.js). No label rewriting — the name stays the
+  // same, only the answer changes.
+  $("replayBtn").setAttribute("aria-checked", "true");
   const step = (ts) => {
     if (!replay.on) return;
     if (!replay.last) replay.last = ts;
@@ -1958,7 +1961,7 @@ function stopReplay() {
   replay.on = false;
   try { cancelAnimationFrame(replay.raf); } catch { /* ignore */ }
   const btn = document.getElementById("replayBtn");
-  if (btn) btn.textContent = "▶ Replay best laps";
+  if (btn) btn.setAttribute("aria-checked", "false");
   const st = document.getElementById("replayStatus");
   if (st) st.textContent = "";
   redrawStaticMap();

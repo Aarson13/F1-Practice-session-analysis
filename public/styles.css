@@ -357,6 +357,28 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   padding: 0 12px;
 }
 
+/* The replay control is a switch: the map is either still or animating, and
+   the track says which. It keeps the default button's box (46px tall, 8px
+   radius, the same hairline) so the controls row keeps its rhythm, and takes
+   the page's own red for the on state. */
+.replay-switch {
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-ctl);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-weight: 800;
+  --ss-track: #0a0e16;
+  --ss-track-on: var(--accent);
+  --ss-thumb-color: #fff;
+  --ss-focus: var(--accent-hi);
+}
+.replay-switch:hover {
+  border-color: #3a4770;
+  background: rgba(255, 255, 255, 0.06);
+}
+
 /* Replay speed is a segmented track (Rubber Segment) rather than a select: the
    red thumb stretches from 1× to 4× and lands on the rate that is playing. */
 .speed-label {

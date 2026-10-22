@@ -86,6 +86,7 @@
 <link rel="stylesheet" href="vendor/tabulator.min.css" />    <link rel="stylesheet" href="glide-select.css" />
     <link rel="stylesheet" href="jelly-radio.css" />
     <link rel="stylesheet" href="rubber-segment.css" />
+    <link rel="stylesheet" href="squish-switch.css" />
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -169,7 +170,13 @@
           <p class="hint">Segments coloured by the <strong>fastest team</strong> in each part of the lap.
             Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
           <div class="controls-row" style="margin:0 0 10px">
-            <sl-button id="replayBtn" variant="default">▶ Replay best laps</sl-button>
+            <!-- The map has two states — still, or animating — and the switch
+                 says which one it is instead of asking the reader to remember
+                 whether the button means play or stop. app.js writes
+                 aria-checked when the replay starts and stops; the component
+                 follows that attribute and nothing here paints the thumb. -->
+            <button type="button" id="replayBtn" class="replay-switch" role="switch" aria-checked="false"
+                    data-squish-switch data-ss-size="sm">Replay best laps</button>
             <!-- Speed is a three-way choice, so it is a segmented track rather
                  than a select: one tap instead of two, and the chosen rate is
                  visible beside the button. app.js keeps the hidden input in
@@ -326,6 +333,7 @@ window.addEventListener("DOMContentLoaded", function () {
 </script>
 <script src="jelly-radio.js"></script>
 <script src="rubber-segment.js" defer></script>
+<script src="squish-switch.js"></script>
 <script src="app.js"></script>
 <script src="glide-select.js"></script>
 </body>
