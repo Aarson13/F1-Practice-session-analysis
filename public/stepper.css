@@ -1,0 +1,261 @@
+/* Stepper — the numeric −/+ control whose digits roll.
+ *
+ * The host supplies the surface it sits on. Everything else is a token, so a
+ * light toolbar, a dark card and a form field can each keep their own look:
+ *
+ *   --stp-bg          control background (default: transparent)
+ *   --stp-ink         digits and +/− glyphs (default: currentColor)
+ *   --stp-line        control border (default: a hairline of currentColor)
+ *   --stp-btn-bg      button face (default: a 7% wash of currentColor)
+ *   --stp-btn-ink     button glyphs (default: --stp-ink)
+ *   --stp-unit-ink    the unit label (default: 62% of --stp-ink)
+ *   --stp-focus       keyboard focus ring (default: currentColor)
+ *   --stp-radius      outer radius (default: 10px)
+ *
+ * The root is inline-flex, so a host can put it in a toolbar, a form row or a
+ * chart header without changing its own layout.
+ */
+
+.stp {
+  --stp-btn: 32px;
+  --stp-font: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--stp-line, color-mix(in srgb, currentColor 22%, transparent));
+  border-radius: var(--stp-radius, 10px);
+  background: var(--stp-bg, transparent);
+  color: var(--stp-ink, currentColor);
+  font-family: inherit;
+  font-size: var(--stp-font);
+  line-height: 1;
+  vertical-align: middle;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  width: fit-content;
+}
+
+.stp[data-stp-size="sm"] {
+  --stp-btn: 27px;
+  --stp-font: 14px;
+  gap: 3px;
+  padding: 2px;
+}
+
+.stp[data-stp-size="lg"] {
+  --stp-btn: 40px;
+  --stp-font: 23px;
+  gap: 5px;
+  padding: 4px;
+}
+
+.stp-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--stp-btn);
+  height: var(--stp-btn);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--stp-radius, 10px) - 4px);
+  background: var(--stp-btn-bg, color-mix(in srgb, currentColor 7%, transparent));
+  color: var(--stp-btn-ink, inherit);
+  font: inherit;
+  font-size: 1.12em;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 120ms cubic-bezier(.2,.8,.3,1.4);
+}
+
+.stp-btn:hover:not(:disabled) {
+  background: var(--stp-btn-hover, color-mix(in srgb, currentColor 14%, transparent));
+}
+
+.stp-btn:active:not(:disabled) {
+  transform: scale(.9);
+}
+
+.stp-btn:focus-visible {
+  outline: 2px solid var(--stp-focus, currentColor);
+  outline-offset: 2px;
+}
+
+.stp-btn:disabled {
+  opacity: .32;
+  cursor: not-allowed;
+}
+
+.stp-glyph {
+  display: block;
+  transform: translateY(-.02em);
+  font-weight: 500;
+}
+
+.stp-value {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: calc(var(--stp-places, 1) * .62em + .5em);
+  padding: 0 3px;
+  border-radius: 6px;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: -.015em;
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+
+.stp-value:focus-visible {
+  outline: 2px solid var(--stp-focus, currentColor);
+  outline-offset: 2px;
+}
+
+.stp[data-stp-disabled="true"] .stp-value {
+  opacity: .55;
+}
+
+.stp-digits {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: calc(var(--stp-places, 1) * .62em);
+  overflow: hidden;
+  line-height: 1.12;
+}
+
+.stp-roll {
+  animation: stp-roll 200ms cubic-bezier(.2,.8,.3,1.15);
+}
+
+.stp-col {
+  position: relative;
+  display: inline-block;
+  width: .62em;
+  height: 1.12em;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.stp-d {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+
+.stp-cur {
+  z-index: 2;
+  opacity: 1;
+}
+
+.stp-old {
+  z-index: 1;
+  opacity: 0;
+}
+
+.stp-in-up {
+  animation: stp-in-up 230ms cubic-bezier(.2,.85,.25,1.15) both;
+}
+
+.stp-in-down {
+  animation: stp-in-down 230ms cubic-bezier(.2,.85,.25,1.15) both;
+}
+
+.stp-out-up {
+  animation: stp-out-up 190ms ease-in both;
+}
+
+.stp-out-down {
+  animation: stp-out-down 190ms ease-in both;
+}
+
+@keyframes stp-in-up {
+  from { transform: translateY(78%); opacity: 0; filter: blur(2px); }
+  to   { transform: translateY(0);   opacity: 1; filter: blur(0); }
+}
+
+@keyframes stp-in-down {
+  from { transform: translateY(-78%); opacity: 0; filter: blur(2px); }
+  to   { transform: translateY(0);    opacity: 1; filter: blur(0); }
+}
+
+@keyframes stp-out-up {
+  from { transform: translateY(0);    opacity: 1; filter: blur(0); }
+  to   { transform: translateY(-78%); opacity: 0; filter: blur(2px); }
+}
+
+@keyframes stp-out-down {
+  from { transform: translateY(0);   opacity: 1; filter: blur(0); }
+  to   { transform: translateY(78%); opacity: 0; filter: blur(2px); }
+}
+
+@keyframes stp-roll {
+  from { transform: scale(.94); }
+  to   { transform: scale(1); }
+}
+
+.stp-unit {
+  margin-left: .4em;
+  color: var(--stp-unit-ink, color-mix(in srgb, currentColor 58%, transparent));
+  font-size: .6em;
+  font-weight: 550;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+/* The control's own label is for the eye; the value's accessible name carries
+   the same words, so the live region only needs to announce a settled change. */
+.stp-sr {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* A host that attaches the kit to its own field hides the native input; the
+   value element stands in for it in the tab order. */
+.stp-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.stp-host {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stp-btn,
+  .stp-roll,
+  .stp-in-up,
+  .stp-in-down,
+  .stp-out-up,
+  .stp-out-down {
+    animation: none !important;
+    transition: none;
+  }
+}

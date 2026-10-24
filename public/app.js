@@ -276,6 +276,7 @@ async function init() {
   $("weekendBtn").addEventListener("click", runWeekend);
   $("replayBtn").addEventListener("click", toggleReplay);
   wireReplaySpeed();
+  initDriverLimit();
   $("trackMap").addEventListener("click", onTrackClick);
   $("h2hA").addEventListener("sl-change", () => { renderH2H().catch((e) => console.warn(e)); });
   $("h2hB").addEventListener("sl-change", () => { renderH2H().catch((e) => console.warn(e)); });
@@ -1934,6 +1935,22 @@ function wireReplaySpeed() {
       other.classList.toggle("on", on);
       other.setAttribute("aria-pressed", String(on));
     }
+  });
+}
+
+// The driver limit is a number, not a three-option list: the stepper walks
+// 2..20 in one gesture and writes the same field runAnalysis() parses. 20 is
+// every car on a current grid, so the old "All drivers" option is the top of
+// the range instead of a separate mode.
+function initDriverLimit() {
+  const input = document.getElementById("driverLimitSelect");
+  if (!input || !window.Stepper) return;
+  Stepper.attach(input, {
+    min: 2,
+    max: 20,
+    step: 1,
+    label: "Drivers to analyze",
+    unit: "driver"
   });
 }
 

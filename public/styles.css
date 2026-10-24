@@ -149,6 +149,14 @@ main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 70px; }
 
 /* ---------------- Shoelace control theming ---------------- */
 .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+/* The driver limit is the one non-Shoelace field in the grid: the stepper
+   replaces the select that used to hold the same three presets. Its label
+   mirrors the Shoelace form-control label so the four cells read as a row. */
+.stp-field { display: flex; flex-direction: column; gap: 8px; }
+.stp-field .stp-label { color: var(--muted); font-size: 11.5px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; }
+.stp-field .stp { --stp-bg: #0a0e18; --stp-btn-bg: #131a2a; --stp-btn-hover: #1b2438;
+  --stp-line: var(--line); --stp-radius: var(--radius-ctl); min-height: 46px; }
 sl-select::part(combobox) {
   background: #0a0e18; border: 1px solid var(--line); border-radius: var(--radius-ctl);
   min-height: 46px;
