@@ -1,0 +1,65 @@
+/* Time Undo Action — the countdown state of a destructive control.
+ *
+ * The host keeps its own button look in the idle state. During the window the
+ * kit adds a quiet tint and a progress line along the bottom; everything is a
+ * custom property so a dark surface, a ghost button or a red one stays itself.
+ *
+ *   --tu-count-bg      background while counting (default: a wash of ink)
+ *   --tu-count-ink     text while counting (default: inherit)
+ *   --tu-count-line    border while counting (default: a hairline of ink)
+ *   --tu-progress-ink  the line itself (default: currentColor)
+ */
+
+.tu-btn {
+  position: relative;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.tu-btn[data-tu-state="counting"].tu-btn {
+  background: var(--tu-count-bg, color-mix(in srgb, currentColor 9%, transparent));
+  color: var(--tu-count-ink, inherit);
+  border-color: var(--tu-count-line, color-mix(in srgb, currentColor 34%, transparent));
+  cursor: pointer;
+}
+
+.tu-btn[data-tu-state="counting"].tu-btn::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(var(--tu-progress, 1) * 100%);
+  height: 2px;
+  background: var(--tu-progress-ink, currentColor);
+  opacity: 0.6;
+  transition: width 100ms linear;
+  pointer-events: none;
+}
+
+.tu-btn[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+/* The countdown is announced once at the start and once at the end; the seconds
+   themselves update the button's accessible name without a live region
+   chattering every tick. */
+.tu-sr {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tu-btn,
+  .tu-btn[data-tu-state="counting"].tu-btn::after {
+    transition: none;
+  }
+}

@@ -298,10 +298,44 @@ async function init() {
       } catch { /* ignore */ }
     }, 250);
   });
-  $("resetBtn").addEventListener("click", () => {
-    $("results").hidden = true; clearError();
-    $("statusBox").hidden = true; $("progressBar").style.width = "0%";
-    try { history.replaceState(null, "", location.pathname); } catch { /* ignore */ }
+  // Reset is the analyzer's destructive control: it throws away the rendered
+  // analysis, the status and the shareable hash at once. It applies on click;
+  // the button itself holds the six-second window in which any of that can be
+  // put back, so there is no confirmation step in front of a reversible action.
+  const resetBtn = $("resetBtn");
+  let resetBefore = null;
+  TimeUndo.mount(resetBtn, {
+    seconds: 6,
+    onStart: () => {
+      const results = $("results"), status = $("statusBox"), error = $("errorBox");
+      if (results.hidden && status.hidden) return false;
+      resetBefore = {
+        resultsHidden: results.hidden,
+        statusHidden: status.hidden,
+        progress: $("progressBar").style.width,
+        href: location.href,
+        errorHidden: error.hidden,
+        errorHtml: error.innerHTML
+      };
+      results.hidden = true;
+      clearError();
+      status.hidden = true;
+      $("progressBar").style.width = "0%";
+      try { history.replaceState(null, "", location.pathname); } catch { /* ignore */ }
+      return true;
+    },
+    onCancel: () => {
+      if (!resetBefore) return;
+      $("results").hidden = resetBefore.resultsHidden;
+      $("statusBox").hidden = resetBefore.statusHidden;
+      $("progressBar").style.width = resetBefore.progress;
+      const error = $("errorBox");
+      error.hidden = resetBefore.errorHidden;
+      error.innerHTML = resetBefore.errorHtml;
+      try { history.replaceState(null, "", resetBefore.href); } catch { /* ignore */ }
+      resetBefore = null;
+    },
+    onCommit: () => { resetBefore = null; }
   });
   // shared-link autoload (?#y=&m=&s=) takes precedence over the default flow
   try {

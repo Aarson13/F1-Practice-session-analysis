@@ -87,6 +87,7 @@
     <link rel="stylesheet" href="jelly-radio.css" />
     <link rel="stylesheet" href="rubber-segment.css" />
     <link rel="stylesheet" href="squish-switch.css" />
+    <link rel="stylesheet" href="time-undo.css" />
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -125,7 +126,7 @@
     <div class="controls-row">
       <sl-button id="analyzeBtn" variant="primary" disabled>Analyze selected session</sl-button>
       <sl-button id="copyLinkBtn" variant="default" disabled title="Copy a link that re-opens this exact analysis">🔗 Copy share link</sl-button>
-      <sl-button id="resetBtn" variant="default">Reset</sl-button>
+      <sl-button id="resetBtn" class="tu-btn" variant="default">Reset</sl-button>
     </div>
     <div id="statusBox" class="status" hidden>
       <div class="progress"><div id="progressBar"></div></div>
@@ -334,6 +335,7 @@ window.addEventListener("DOMContentLoaded", function () {
 <script src="jelly-radio.js"></script>
 <script src="rubber-segment.js" defer></script>
 <script src="squish-switch.js"></script>
+<script src="time-undo.js"></script>
 <script src="app.js"></script>
 <script src="glide-select.js"></script>
 </body>

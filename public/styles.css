@@ -425,3 +425,16 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 @media (max-width: 720px) {
   .site-footer { padding: 18px 12px 32px; }
 }
+
+/* ---------------- Time Undo on the Shoelace Reset ----------------
+   sl-button paints its face in shadow DOM, so the kit's token tint has to
+   cross the boundary through the `base` part. The host still owns the
+   countdown label and the progress line. */
+sl-button.tu-btn[data-tu-state="counting"]::part(base) {
+  background: var(--tu-count-bg, rgba(255, 255, 255, 0.07));
+  border-color: var(--tu-count-line, rgba(255, 255, 255, 0.3));
+  color: var(--tu-count-ink, #f4efe9);
+}
+sl-button.tu-btn[data-tu-state="counting"]::part(label) {
+  font-variant-numeric: tabular-nums;
+}
