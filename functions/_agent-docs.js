@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
- * F1 Session Analyzer — the agent-facing documents.
+ * F1 Session Analyzer - the agent-facing documents.
  *
  * `_router.js` serves these. Nothing here touches the analysis engine or the
  * OpenF1 API: the browser app stays the source of truth for live data, and this
@@ -22,7 +22,7 @@ export const HOME_MARKDOWN = lines(
   "**F1 Session Analyzer** is a browser-based tool for turn-by-turn analysis of any Formula 1",
   "session: Practice 1–3, Qualifying, Sprint Qualifying, Sprint and Race. Pick a year, Grand",
   "Prix and session, and it compares each driver's best lap at the same point on track to show",
-  "who is fastest through every corner — for drivers and for teams.",
+  "who is fastest through every corner - for drivers and for teams.",
   "",
   "- **Live site:** https://f1-practice-session-analysis.pages.dev/",
   "- **Author:** Parth Soni",
@@ -94,10 +94,10 @@ export const HOME_MARKDOWN = lines(
   "",
   "## Pages",
   "",
-  "- [Analyzer](https://f1-practice-session-analysis.pages.dev/) — pick a session and analyze it.",
-  "- [About](https://f1-practice-session-analysis.pages.dev/about) — method, sources and limits.",
-  "- [Contact](https://f1-practice-session-analysis.pages.dev/contact) — corrections and bugs.",
-  "- [Privacy](https://f1-practice-session-analysis.pages.dev/privacy) — requests and local state.",
+  "- [Analyzer](https://f1-practice-session-analysis.pages.dev/) - pick a session and analyze it.",
+  "- [About](https://f1-practice-session-analysis.pages.dev/about) - method, sources and limits.",
+  "- [Contact](https://f1-practice-session-analysis.pages.dev/contact) - corrections and bugs.",
+  "- [Privacy](https://f1-practice-session-analysis.pages.dev/privacy) - requests and local state.",
   "- [Sitemap](https://f1-practice-session-analysis.pages.dev/sitemap.xml)",
   "- [Agent guide](https://f1-practice-session-analysis.pages.dev/llms.txt)",
   ""
@@ -174,9 +174,9 @@ export const CONTACT_MARKDOWN = lines(
   "",
   "## Where to send it",
   "",
-  "- **Email:** soni.soni.parth@gmail.com — best for a data correction, a privacy question or a",
+  "- **Email:** soni.soni.parth@gmail.com - best for a data correction, a privacy question or a",
   "  general note.",
-  "- **GitHub issues:** https://github.com/Aarson13/F1-Practice-session-analysis/issues — best for",
+  "- **GitHub issues:** https://github.com/Aarson13/F1-Practice-session-analysis/issues - best for",
   "  a reproducible bug in the analyzer, a chart, a table or the Pages function.",
   "",
   "## What makes a report actionable",
@@ -184,7 +184,7 @@ export const CONTACT_MARKDOWN = lines(
   "Include the **year, Grand Prix and session**, and the share fragment from the address bar",
   "(`#y=…&m=…&s=…`) if you have one. For a chart or table problem, name the tab and the driver or",
   "team, and say what you expected instead. A screenshot and the browser name help. For a missing",
-  "session, check whether OpenF1 has published it before reporting it here — the analyzer can only",
+  "session, check whether OpenF1 has published it before reporting it here - the analyzer can only",
   "use what the API returns.",
   "",
   "## What not to send",
@@ -201,7 +201,7 @@ export const CONTACT_MARKDOWN = lines(
 );
 
 export const PRIVACY_MARKDOWN = lines(
-  "# Privacy notice — F1 Session Analyzer",
+  "# Privacy notice - F1 Session Analyzer",
   "",
   "**Last updated:** 21 October 2026",
   "",
@@ -219,7 +219,7 @@ export const PRIVACY_MARKDOWN = lines(
   "",
   "The page also loads its fonts from Google Fonts (`fonts.googleapis.com` and",
   "`fonts.gstatic.com`), so Google receives the request metadata needed to serve them. Everything",
-  "else — the app, its styles, charts, grids, icons and feedback code — is served from this site.",
+  "else - the app, its styles, charts, grids, icons and feedback code - is served from this site.",
   "",
   "## Local state and sharing",
   "",

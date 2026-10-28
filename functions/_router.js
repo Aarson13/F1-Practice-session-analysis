@@ -1,8 +1,8 @@
 /**
- * F1 Session Analyzer — the routing half of this site's Pages Function.
+ * F1 Session Analyzer - the routing half of this site's Pages Function.
  *
  * One API route: `/api/feedback`. Everything else is served by `env.ASSETS`,
- * the same static upload Pages served before this function existed — with an
+ * the same static upload Pages served before this function existed - with an
  * agent layer on top: `/`, `/about`, `/contact` and `/privacy` negotiate
  * `text/markdown`, their `.md` aliases always answer Markdown, and an unmatched
  * path gets a Markdown 404 when one is requested. The bodies and negotiation
@@ -10,7 +10,7 @@
  *
  * The KV namespace is handed to the feedback module the same way the sibling
  * RBI site does it: a namespace is an object, not a string, so it cannot ride
- * on `process.env` — `setStore()` takes it directly. Until the shared
+ * on `process.env` - `setStore()` takes it directly. Until the shared
  * `site-feedback` namespace is bound to this Pages project the route answers
  * 503 and says so, which is the honest answer: a form that silently accepted
  * feedback it could not store would lose every message.

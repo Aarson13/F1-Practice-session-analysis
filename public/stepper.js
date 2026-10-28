@@ -1,4 +1,4 @@
-/* Stepper — a numeric −/+ control whose digits roll.
+/* Stepper - a numeric −/+ control whose digits roll.
  *
  *   Stepper.attach(input, {
  *     min: 1, max: 31, step: 1,

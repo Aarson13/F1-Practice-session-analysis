@@ -1,4 +1,4 @@
-/* Jelly Radio — vanilla port of React Bits' Jelly Radio.
+/* Jelly Radio - vanilla port of React Bits' Jelly Radio.
  *
  * Two ways to wear it:
  *
@@ -59,7 +59,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Painted skin — skipped entirely with data-jelly-bare. */
+/* Painted skin - skipped entirely with data-jelly-bare. */
 .jelly-radio:not([data-jelly-bare]) .jelly-radio__chip {
   height: var(--jr-h);
   padding: 0 var(--jr-px);

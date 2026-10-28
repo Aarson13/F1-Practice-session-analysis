@@ -1,9 +1,9 @@
-/* GlideSelect — a vanilla port of React Bits' GlideSelect.
+/* GlideSelect - a vanilla port of React Bits' GlideSelect.
  *
  * A chip opens a pill menu; the highlight glides to the hovered row and the
  * chosen value is written back to a native <select> (or <sl-select>), so the
- * page's existing wiring — its change handlers, its stored filters, its form
- * submission — keeps working untouched.
+ * page's existing wiring - its change handlers, its stored filters, its form
+ * submission - keeps working untouched.
  *
  * Usage, no build step:
  *
@@ -160,8 +160,8 @@
     this.root.appendChild(this.trigger);
     this.root.appendChild(this.menu);
 
-    // The native control stays in the DOM — it is the value the rest of the
-    // page reads — but out of the flow, so the chip occupies its place.
+    // The native control stays in the DOM - it is the value the rest of the
+    // page reads - but out of the flow, so the chip occupies its place.
     el.classList.add(NATIVE);
     el.setAttribute('tabindex', '-1');
     el.setAttribute('aria-hidden', 'true');

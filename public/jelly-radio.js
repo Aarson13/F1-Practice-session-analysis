@@ -1,4 +1,4 @@
-/* Jelly Radio — a vanilla port of React Bits' Jelly Radio.
+/* Jelly Radio - a vanilla port of React Bits' Jelly Radio.
  *
  * A radio group of chips where the chosen chip swells and pushes its
  * neighbours aside on a spring. Unlike the React original, this build does not
@@ -19,8 +19,8 @@
  *
  * The group is the element carrying `data-jelly-radio`; its direct button
  * children are the chips (a non-button child such as a decorative indicator is
- * left alone). The selected chip is read from the item itself — `aria-checked`,
- * `aria-selected`, `aria-pressed`, `data-on`, `.active` or `.on` — so the page
+ * left alone). The selected chip is read from the item itself - `aria-checked`,
+ * `aria-selected`, `aria-pressed`, `data-on`, `.active` or `.on` - so the page
  * stays the source of truth: click a chip, the site's handler updates its own
  * state, and the component animates to whatever the page now says is selected.
  *

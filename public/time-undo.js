@@ -1,4 +1,4 @@
-/* Time Undo Action — a destructive control that turns into its own undo window.
+/* Time Undo Action - a destructive control that turns into its own undo window.
  *
  *   TimeUndo.mount(button, {
  *     seconds: 6,
@@ -9,7 +9,7 @@
  *
  * The click is the action: onStart runs at once, and only then does the button
  * become "Cancel (6)". The countdown is the window in which the action can be
- * taken back — never a delay before it happens. Clicking Cancel stops the
+ * taken back - never a delay before it happens. Clicking Cancel stops the
  * clock, calls onCancel and restores the button. When the window ends the
  * action simply stays, and onCommit (if any) runs.
  *

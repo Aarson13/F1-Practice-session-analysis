@@ -1,4 +1,4 @@
-/* Squish Switch — a vanilla port of React Bits' Squish Switch.
+/* Squish Switch - a vanilla port of React Bits' Squish Switch.
  *
  * A switch whose thumb stretches with the speed it is travelling and squashes
  * against the end of the track when it lands. The React original is a React
@@ -14,8 +14,8 @@
  *     Dark mode
  *   </button>
  *
- * The on/off state is read from the page — `aria-checked`, `aria-pressed`,
- * `data-on`, `.on` or `.active` — so the site stays authoritative: its click
+ * The on/off state is read from the page - `aria-checked`, `aria-pressed`,
+ * `data-on`, `.on` or `.active` - so the site stays authoritative: its click
  * handler flips its own state and the thumb springs to whatever it now says.
  * A native checkbox inside a label works the same way: the component hides the
  * input and paints the switch beside the label text.

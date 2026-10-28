@@ -1,4 +1,4 @@
-/* Time Undo Action — the countdown state of a destructive control.
+/* Time Undo Action - the countdown state of a destructive control.
  *
  * The host keeps its own button look in the idle state. During the window the
  * kit adds a quiet tint and a progress line along the bottom; everything is a

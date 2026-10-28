@@ -1,4 +1,4 @@
-/* Rubber Segment — vanilla port of React Bits' Rubber Segment.
+/* Rubber Segment - vanilla port of React Bits' Rubber Segment.
  *
  * The thumb is a single absolutely-positioned layer behind the chips; its left
  * edge and width are written as --rs-x and --rs-w by the script. Chips keep

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis</title>
+<title>F1 Session Analyzer - Turn-by-Turn Driver &amp; Team Analysis</title>
 <meta name="description" content="F1 Session Analyzer: pick any year, Grand Prix and session (Practice, Qualifying, Sprint, Race) for turn-by-turn driver and team corner analysis. Data comes live from OpenF1; nothing is stored." />
 <meta name="theme-color" content="#090b10" />
 <link rel="canonical" href="https://f1-practice-session-analysis.pages.dev/" />
@@ -11,13 +11,13 @@
 <link rel="describedby" href="/llms.txt" type="text/plain" />
 <meta property="og:site_name" content="F1 Session Analyzer" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="F1 Session Analyzer — Turn-by-Turn Driver &amp; Team Analysis" />
+<meta property="og:title" content="F1 Session Analyzer - Turn-by-Turn Driver &amp; Team Analysis" />
 <meta property="og:description" content="Compare every driver and team through every corner of any F1 session. Practice, Qualifying, Sprint and Race, analysed live from OpenF1." />
 <meta property="og:url" content="https://f1-practice-session-analysis.pages.dev/" />
 <meta property="og:image" content="https://f1-practice-session-analysis.pages.dev/og-image.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="F1 Session Analyzer — turn-by-turn driver and team analysis" />
+<meta property="og:image:alt" content="F1 Session Analyzer - turn-by-turn driver and team analysis" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="F1 Session Analyzer" />
 <meta name="twitter:description" content="Turn-by-turn F1 driver and team analysis for every session, from live OpenF1 data." />
@@ -107,7 +107,7 @@
   <section class="card" id="controlsCard">
     <h2><span class="tick"><span>01</span></span>Select session</h2>
     <p class="hint">
-      Every session type — Practice 1/2/3, Qualifying, Sprint Qualifying,
+      Every session type - Practice 1/2/3, Qualifying, Sprint Qualifying,
       Sprint and Race. Only the session you select is analyzed.
     </p>
     <div class="controls-grid">
@@ -170,11 +170,11 @@
 
       <sl-tab-panel name="track">
         <section class="card">
-          <h2><span class="tick"><span>03</span></span>Track map — who is fastest where</h2>
+          <h2><span class="tick"><span>03</span></span>Track map - who is fastest where</h2>
           <p class="hint">Segments coloured by the <strong>fastest team</strong> in each part of the lap.
             Numbered dots mark corner apexes. Click an apex to jump to its table row &middot; hover a turn row to spotlight it on the map.</p>
           <div class="controls-row" style="margin:0 0 10px">
-            <!-- The map has two states — still, or animating — and the switch
+            <!-- The map has two states - still, or animating - and the switch
                  says which one it is instead of asking the reader to remember
                  whether the button means play or stop. app.js writes
                  aria-checked when the replay starts and stops; the component
@@ -260,9 +260,9 @@
 
       <sl-tab-panel name="weekend">
         <section class="card card-wide">
-          <h2><span class="tick"><span>10</span></span>Weekend view — how corner dominance shifted</h2>
+          <h2><span class="tick"><span>10</span></span>Weekend view - how corner dominance shifted</h2>
           <p class="hint">Lite analysis (top 5 per session) of <strong>every session of this Grand Prix weekend</strong>:
-            which team owned each corner, session by session. Takes a while — progress is shown above.</p>
+            which team owned each corner, session by session. Takes a while - progress is shown above.</p>
           <div class="controls-row" style="margin-top:0">
             <sl-button id="weekendBtn" variant="primary">Analyze full weekend</sl-button>
           </div>
@@ -272,7 +272,7 @@
 
       <sl-tab-panel name="traces">
         <section class="card">
-          <h2><span class="tick"><span>11</span></span>Speed traces — best laps overlaid</h2>
+          <h2><span class="tick"><span>11</span></span>Speed traces - best laps overlaid</h2>
           <p class="hint">Speed (km/h) against lap progress for each driver's best lap. Click legend entries to toggle drivers; drag to zoom.</p>
           <div id="speedChart" class="chart"></div>
         </section>
@@ -289,7 +289,7 @@
         <section class="card">
           <h2><span class="tick"><span>13</span></span>How this works</h2>
           <div class="how">
-            <p><strong>Best lap.</strong> For every driver we take the single fastest non-pit-out lap of the session you selected — nothing else from the weekend is used.</p>
+            <p><strong>Best lap.</strong> For every driver we take the single fastest non-pit-out lap of the session you selected - nothing else from the weekend is used.</p>
             <p><strong>Same point on track.</strong> Speed samples arrive over <em>time</em>, but drivers reach each point at different times. We integrate speed into distance travelled and resample every lap to 1,000 evenly spaced points, so point 500 is the same piece of asphalt for everyone.</p>
             <p><strong>Corners.</strong> Apex positions come from official circuit data fetched live. Each corner is a small window (±1.2% of lap distance) around its apex.</p>
             <p><strong>Ranking.</strong> Within each window we average each driver's speed. Highest average wins the corner. A team's score is the mean of its drivers. "Corners won" counts windows topped.</p>
@@ -328,7 +328,7 @@ window.addEventListener("DOMContentLoaded", function () {
       if (box) {
         box.hidden = false;
         box.innerHTML = "<strong>Libraries failed to load:</strong> " + missing.join(", ") +
-          ". The interface needs its component files — check your connection or ad-blocker, " +
+          ". The interface needs its component files - check your connection or ad-blocker, " +
           "and confirm the <code>vendor/</code> folder was deployed with the site.";
       }
     }

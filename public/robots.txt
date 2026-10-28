@@ -7,7 +7,7 @@
 # in _headers; robots rules here apply to this canonical production host.
 #
 # The Sitemap line names the deployed host, which is this repository's Pages
-# project — the same address the README links to and the manifest names.
+# project - the same address the README links to and the manifest names.
 User-agent: *
 Allow: /
 

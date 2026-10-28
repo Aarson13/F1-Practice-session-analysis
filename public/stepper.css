@@ -1,4 +1,4 @@
-/* Stepper — the numeric −/+ control whose digits roll.
+/* Stepper - the numeric −/+ control whose digits roll.
  *
  * The host supplies the surface it sits on. Everything else is a token, so a
  * light toolbar, a dark card and a form field can each keep their own look:

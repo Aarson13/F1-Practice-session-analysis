@@ -9,7 +9,7 @@
  *     plus official corner geometry from the meeting's circuit_info_url.
  *  3. All processing happens in the browser on page load / on Analyze.
  *     Nothing is downloaded, cached on a server, or stored anywhere.
- *  4. Only the SELECTED session is analyzed — never the whole weekend.
+ *  4. Only the SELECTED session is analyzed - never the whole weekend.
  *
  * Corner method: each driver's best lap telemetry (speed @ ~3.7Hz) is
  * converted to speed-vs-lap-distance (distance integrated from speed over
@@ -46,13 +46,13 @@ async function apiGet(url, label) {
     try {
       const res = await fetch(url, { signal: ctrl.signal });
       if (res.status === 429) {
-        setStatus(`Rate-limited by the API — waiting 15s before retry (attempt ${attempt}/5)…`);
+        setStatus(`Rate-limited by the API - waiting 15s before retry (attempt ${attempt}/5)…`);
         await sleep(15000);
         continue;
       }
       if (res.status >= 500 && res.status < 600) {
         lastError = new Error(`API error loading ${label}: HTTP ${res.status}`);
-        await sleep(2000 * attempt); // transient server error — retry
+        await sleep(2000 * attempt); // transient server error - retry
         continue;
       }
       if (!res.ok) throw new Error(`API error loading ${label}: HTTP ${res.status}`);
@@ -89,14 +89,14 @@ async function apiGet(url, label) {
 
 /* ---------------- formatting helpers ---------------- */
 function fmtLap(sec) {
-  if (sec == null || !isFinite(sec)) return "—";
+  if (sec == null || !isFinite(sec)) return "-";
   const m = Math.floor(sec / 60);
   const s = (sec - m * 60).toFixed(3).padStart(6, "0");
   return `${m}:${s}`;
 }
 function fmtGap(g) {
   if (g == null || !isFinite(g)) return "";
-  return g === 0 ? " — " : `+${g.toFixed(3)}`;
+  return g === 0 ? " - " : `+${g.toFixed(3)}`;
 }
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -258,7 +258,7 @@ async function init() {
         new Promise((r) => setTimeout(r, 8000)),
       ]);
     }
-  } catch { /* ignore — native fallback still works */ }
+  } catch { /* ignore - native fallback still works */ }
   const yearSel = $("yearSelect");
   const thisYear = new Date().getFullYear();
   yearSel.innerHTML = "";
@@ -364,7 +364,7 @@ async function copyShareLink() {
     ta.value = url;
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand("copy"); done(); } catch { showError("Could not copy — the link is in the address bar."); }
+    try { document.execCommand("copy"); done(); } catch { showError("Could not copy - the link is in the address bar."); }
     ta.remove();
   }
 }
@@ -401,14 +401,14 @@ async function loadMeetings() {
   // either the selection hasn't landed yet or the year is invalid.
   if (!/^\d{4}$/.test(year)) {
     gpSel.innerHTML = `<option value="">Pick a year first</option>`;
-    showError("Pick a valid year first — the Grand Prix list needs one to load. If the year list looks empty, reload the page.");
+    showError("Pick a valid year first - the Grand Prix list needs one to load. If the year list looks empty, reload the page.");
     return;
   }
   try {
     const meetings = await apiGet(`${OPENF1}/meetings?year=${encodeURIComponent(year)}`, "Grand Prix list");
     if (!Array.isArray(meetings) || meetings.length === 0) {
       gpSel.innerHTML = `<sl-option value="">No Grands Prix found for ${esc(year)}</sl-option>`;
-      showError(`The API returned no Grands Prix for ${year}. The season may not have started yet — try an earlier year.`);
+      showError(`The API returned no Grands Prix for ${year}. The season may not have started yet - try an earlier year.`);
       return;
     }
     meetings.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
@@ -418,7 +418,7 @@ async function loadMeetings() {
     for (const m of meetings) {
       if (m.is_cancelled) continue; // nothing to analyze
       const d = new Date(m.date_start).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-      gpSel.appendChild(mkOption(m.meeting_key, `${m.meeting_name} — ${m.location} (${d})`));
+      gpSel.appendChild(mkOption(m.meeting_key, `${m.meeting_name} - ${m.location} (${d})`));
     }
     if (selectOptionCount(gpSel) === 0) {
       gpSel.innerHTML = `<sl-option value="">No (non-cancelled) Grands Prix for ${esc(year)}</sl-option>`;
@@ -451,7 +451,7 @@ async function loadSessions() {
     }
     sesSel.innerHTML = "";
     // Combined-practice mode: one entry pooling every available practice
-    // session — championship (Grand Prix) weekends only.
+    // session - championship (Grand Prix) weekends only.
     const meeting = state.meetingByKey.get(String(meetingKey));
     const practices = practiceSessions(state.sessions);
     if (practices.length >= 2 && isGrandPrixMeeting(meeting)) {
@@ -460,7 +460,7 @@ async function loadSessions() {
     }
     for (const s of state.sessions) {
       const d = new Date(s.date_start).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-      sesSel.appendChild(mkOption(s.session_key, `${s.session_name} (${s.session_type}) — ${d}`));
+      sesSel.appendChild(mkOption(s.session_key, `${s.session_name} (${s.session_type}) - ${d}`));
     }
     sesSel.disabled = false;
   } catch (e) { showError(e.message); }
@@ -583,9 +583,9 @@ function windowStats(trace, bin, half = CORNER_HALF_WINDOW) {
 }
 
 /* =====================================================================
- * ANALYSIS CORE — shared by single-session and weekend analysis.
+ * ANALYSIS CORE - shared by single-session and weekend analysis.
  * progress(frac, text) reports 0..1. Returns a plain analysis object.
- * Only the session passed in is touched — never the whole weekend.
+ * Only the session passed in is touched - never the whole weekend.
  * ===================================================================== */
 function compoundFor(stintsByDriver, num, lapNumber) {
   const list = stintsByDriver.get(num) || [];
@@ -595,7 +595,7 @@ function compoundFor(stintsByDriver, num, lapNumber) {
 }
 function summarizeWeather(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return null;
-  // field names differ across API versions — accept both
+  // field names differ across API versions - accept both
   const num = (ks) => rows.map((r) => {
     for (const k of ks) { if (Number.isFinite(r[k])) return r[k]; }
     return NaN;
@@ -650,7 +650,7 @@ function computePace(laps, stintsByDriver) {
       const avg = clean.reduce((s, r) => s + r.lap_duration, 0) / clean.length;
       out.push({
         num, stint: si + 1, compound: st.compound || "Unknown",
-        age: st.tyre_age_at_start ?? "—", n: clean.length, avg,
+        age: st.tyre_age_at_start ?? "-", n: clean.length, avg,
         slope: leastSquares(clean.map((r) => r.lap_number), clean.map((r) => r.lap_duration)),
       });
     });
@@ -832,7 +832,7 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
   const ov = await fetchOverview(sessionKey);
   const { drivers, laps } = ov;
 
-  // Official corner geometry — fetched live, never stored.
+  // Official corner geometry - fetched live, never stored.
   const circuit = await fetchCircuit(meeting, progress);
 
   const driverInfo = buildDriverInfo(drivers);
@@ -848,7 +848,7 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
 
   // per-driver telemetry for their best lap window
   const traces = await fetchBestTraces(sessionKey, ranked, driverInfo, progress);
-  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting — wait a minute and retry, or analyze fewer drivers.");
+  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting - wait a minute and retry, or analyze fewer drivers.");
 
   // reference = fastest analyzed lap
   const refNum = [...traces.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration)[0][0];
@@ -870,7 +870,7 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
   // team aggregates
   const teamStats = aggregateTeams(driverStats, cornerResults);
 
-  // race pace (Race / Sprint only — needs full-lap stint data)
+  // race pace (Race / Sprint only - needs full-lap stint data)
   const stype = session.session_type || "";
   const pace = (/race|sprint/i.test(stype) && !/qualif/i.test(stype)) ? computePace(laps, stintsByDriver) : [];
 
@@ -882,10 +882,10 @@ async function analyzeSessionData(sessionKey, session, meeting, driverLimit, pro
 }
 
 /* =====================================================================
- * COMBINED PRACTICE — pools every available practice session.
+ * COMBINED PRACTICE - pools every available practice session.
  * Each driver's overall-best practice lap (and its telemetry) is used,
  * so corners are ranked on the best each driver showed all weekend.
- * Telemetry is fetched only for those laps — one lap per driver total.
+ * Telemetry is fetched only for those laps - one lap per driver total.
  * ===================================================================== */
 async function analyzeCombinedPractice(practiceSessions, meeting, driverLimit, progress) {
   const sessions = practiceSessions.slice().sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
@@ -931,7 +931,7 @@ async function analyzeCombinedPractice(practiceSessions, meeting, driverLimit, p
     const tr = await fetchOneTrace(s.session_key, num, lap, driverInfo);
     if (tr) traces.set(num, tr);
   }
-  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting — wait a minute and retry, or analyze fewer drivers.");
+  if (traces.size < 2) throw new Error("Not enough driver telemetry could be loaded (need at least 2 drivers). The API may be rate-limiting - wait a minute and retry, or analyze fewer drivers.");
   // 5. shared corners + rankings on the pooled best laps
   const circuit = await fetchCircuit(meeting, (f, t) => progress(0.78, t));
   const refNum = [...traces.entries()].sort((a, b) => a[1].lap.lap_duration - b[1].lap.lap_duration)[0][0];
@@ -966,7 +966,7 @@ async function analyzeCombinedPractice(practiceSessions, meeting, driverLimit, p
 }
 
 /* =====================================================================
- * MAIN ANALYSIS — only the selected session
+ * MAIN ANALYSIS - only the selected session
  * ===================================================================== */
 async function runAnalysis() {
   clearError();
@@ -1008,7 +1008,7 @@ async function runAnalysis() {
     } catch { /* ignore */ }
     // ECharts measures its container at init (while hidden = 0px): resize now
     try { if (typeof speedChart !== "undefined" && speedChart) speedChart.resize(); } catch { /* ignore */ }
-    setStatus(`Done — analyzed ${a.driverStats.length} drivers over ${a.cornerResults.length} corners (${a.cornerSource} apexes). ${combined ? "All practice sessions combined." : "Only the selected session was analyzed."}`, 1);
+    setStatus(`Done - analyzed ${a.driverStats.length} drivers over ${a.cornerResults.length} corners (${a.cornerSource} apexes). ${combined ? "All practice sessions combined." : "Only the selected session was analyzed."}`, 1);
   } catch (e) {
     console.error(e);
     showError((e && e.message) || String(e));
@@ -1095,7 +1095,7 @@ async function ensureTabBuilt(name) {
 function pillFor(compound) {
   const c = String(compound || "Unknown").toUpperCase();
   const cls = c === "SOFT" ? "pill-soft" : c === "MEDIUM" ? "pill-medium" : c === "HARD" ? "pill-hard" : "pill-unknown";
-  const label = c === "SOFT" ? "SOFT" : c === "MEDIUM" ? "MED" : c === "HARD" ? "HARD" : c === "Unknown" ? "—" : esc(compound);
+  const label = c === "SOFT" ? "SOFT" : c === "MEDIUM" ? "MED" : c === "HARD" ? "HARD" : c === "Unknown" ? "-" : esc(compound);
   return `<span class="pill ${cls}">${label}</span>`;
 }
 function portraitFor(info, size) {
@@ -1132,9 +1132,9 @@ function renderSummary(a) {
   const cornerKing = [...a.driverStats].sort((x, y) => y.won - x.won)[0];
   const teamKing = a.teamStats[0];
   $("summaryChips").innerHTML =
-    `<span class="chip">⏱️ <b>Fastest lap</b> ${esc(fastest.info.acronym)} — ${fmtLap(fastest.lap.lap_duration)}</span>` +
-    `<span class="chip">↩️ <b>Most corners won (driver)</b> ${esc(cornerKing.info.acronym)} — ${cornerKing.won}</span>` +
-    `<span class="chip">🏆 <b>Most corners won (team)</b> <span class="swatch" style="background:${teamKing.colour}"></span>${esc(teamKing.team)} — ${teamKing.won}</span>`;
+    `<span class="chip">⏱️ <b>Fastest lap</b> ${esc(fastest.info.acronym)} - ${fmtLap(fastest.lap.lap_duration)}</span>` +
+    `<span class="chip">↩️ <b>Most corners won (driver)</b> ${esc(cornerKing.info.acronym)} - ${cornerKing.won}</span>` +
+    `<span class="chip">🏆 <b>Most corners won (team)</b> <span class="swatch" style="background:${teamKing.colour}"></span>${esc(teamKing.team)} - ${teamKing.won}</span>`;
 }
 
 /* ---------------- Tabulator grids ---------------- */
@@ -1185,7 +1185,7 @@ function makeGrid(name, data, columns, sortField, sortDir) {
 }
 function downloadGridCSV(name, filename) {
   const g = grids[name];
-  if (!g) { showError("Run an analysis first — there is nothing to download yet."); return; }
+  if (!g) { showError("Run an analysis first - there is nothing to download yet."); return; }
   try { g.download("csv", filename); }
   catch (e) { showError(`CSV download failed: ${(e && e.message) || e}`); }
 }
@@ -1274,7 +1274,7 @@ function renderTeamTable(a) {
     won: t.won,
     avgCorner: t.avgCorner,
     avgCornerHtml: `${t.avgCorner.toFixed(1)} km/h`,
-    strongest: t.strongest == null ? "—" : `T${t.strongest}`,
+    strongest: t.strongest == null ? "-" : `T${t.strongest}`,
   }));
   makeGrid("team", data, [
     { title: "Team", field: "team", sorter: "string", formatter: (cell) => cell.getRow().getData().teamHtml },
@@ -1307,7 +1307,7 @@ async function getTrackShape(a) {
     const clean = cleanShape(a.circuit.x, a.circuit.y || []);
     if (clean) return clean;
   }
-  // Fallback: one extra live request — outline from the fastest driver's
+  // Fallback: one extra live request - outline from the fastest driver's
   // location trace during their best lap.
   const ref = a.driverStats[0];
   const start = new Date(ref.lap.date_start);
@@ -1505,12 +1505,12 @@ function renderClassification(a) {
     const dur = Array.isArray(r.duration) ? r.duration.filter(Boolean).join(" / ") : r.duration;
     return {
       pos: r.position ?? 999,
-      posHtml: `${r.position ?? "—"}`,
+      posHtml: `${r.position ?? "-"}`,
       driver: info.acronym,
       driverHtml: `${portraitFor(info)}<span class="swatch" style="background:${info.colour}"></span>${esc(info.acronym)} <span style="color:var(--muted)">${esc(info.name)}</span>`,
       team: info.team,
-      durHtml: `${dur != null && dur !== "" ? (typeof dur === "number" ? fmtLap(dur) : esc(dur)) : "—"}`,
-      laps: r.number_of_laps ?? "—",
+      durHtml: `${dur != null && dur !== "" ? (typeof dur === "number" ? fmtLap(dur) : esc(dur)) : "-"}`,
+      laps: r.number_of_laps ?? "-",
     };
   });
   if (!data.length) {
@@ -1566,11 +1566,11 @@ function renderSectorTable(a) {
   });
   const sec = (t, f) => ({
     title: t, field: f, sorter: "number", hozAlign: "right",
-    formatter: (cell) => { const v = cell.getValue(); return v == null ? "—" : v.toFixed(3); },
+    formatter: (cell) => { const v = cell.getValue(); return v == null ? "-" : v.toFixed(3); },
   });
   const trap = (t, f) => ({
     title: t, field: f, sorter: "number", hozAlign: "right",
-    formatter: (cell) => { const v = cell.getValue(); return v == null ? "—" : `${v} km/h`; },
+    formatter: (cell) => { const v = cell.getValue(); return v == null ? "-" : `${v} km/h`; },
   });
   makeGrid("sector", data, [
     { title: "Driver", field: "driver", sorter: "string", formatter: (cell) => cell.getRow().getData().driverHtml },
@@ -1618,7 +1618,7 @@ async function populateH2H(a) {
     const sel = $(id);
     sel.innerHTML = "";
     for (const d of a.driverStats) {
-      sel.appendChild(mkOption(d.num, `${d.info.acronym} — ${d.info.team} (${fmtLap(d.lap.lap_duration)})`));
+      sel.appendChild(mkOption(d.num, `${d.info.acronym} - ${d.info.team} (${fmtLap(d.lap.lap_duration)})`));
     }
   }
   if (a.driverStats.length >= 2) {
@@ -1703,7 +1703,7 @@ async function runWeekend() {
   const a0 = state.analysis;
   if (!a0) return;
   const sessions = state.sessions.filter((s) => !s.is_cancelled);
-  if (sessions.length < 2) { showError("This event has fewer than 2 sessions — nothing to compare."); return; }
+  if (sessions.length < 2) { showError("This event has fewer than 2 sessions - nothing to compare."); return; }
   // lock the main controls so a mid-run change can't mix two analyses
   const locked = ["yearSelect", "gpSelect", "sessionSelect", "driverLimitSelect", "analyzeBtn", "weekendBtn"];
   const wasEnabled = {};
@@ -1724,7 +1724,7 @@ async function runWeekend() {
       }
     }
     renderWeekend(perSession);
-    setStatus(`Weekend view done — ${perSession.filter((p) => p.data).length}/${perSession.length} sessions analyzed.`, 1);
+    setStatus(`Weekend view done - ${perSession.filter((p) => p.data).length}/${perSession.length} sessions analyzed.`, 1);
   } catch (e) {
     console.error(e);
     showError((e && e.message) || String(e));
@@ -1754,7 +1754,7 @@ function renderWeekend(perSession) {
     formatter: (cell) => `<span class="best-cell">${esc(cell.getValue())}</span>` }];
   ok.forEach((p, i) => {
     cols.push({ title: p.session.session_name, field: `s${i}`, sorter: "string",
-      formatter: (cell) => cell.getRow().getData()[`s${i}Html`] || `<span style="color:var(--muted)">—</span>` });
+      formatter: (cell) => cell.getRow().getData()[`s${i}Html`] || `<span style="color:var(--muted)">-</span>` });
   });
   const data = order.map((k) => {
     const row = { turn: k };
@@ -1787,7 +1787,7 @@ async function drawH2HMap(a, A, B) {
   ctx.clearRect(0, 0, fit.W, fit.H);
   if (!tA || !tB || !shape || !shape.x) {
     ctx.fillStyle = "#9aa4bd"; ctx.font = "15px sans-serif";
-    ctx.fillText("Duel map needs the track outline — it was unavailable for this session.", 24, 60);
+    ctx.fillText("Duel map needs the track outline - it was unavailable for this session.", 24, 60);
     if (legend) legend.textContent = "";
     return;
   }
@@ -1805,7 +1805,7 @@ async function drawH2HMap(a, A, B) {
     ctx.strokeStyle = colour; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(PX[i0], PY[i0]); ctx.lineTo(PX[i1], PY[i1]); ctx.stroke();
   }
-  // apex markers (small, quiet — the duel is the color)
+  // apex markers (small, quiet - the duel is the color)
   ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for (const c of a.cornerResults) {
     const i = Math.max(0, Math.min(n - 1, Math.round((c.bin / (N_BINS - 1)) * (n - 1))));
@@ -1968,7 +1968,7 @@ function startReplay() {
   replay.t = 0;
   replay.on = true;
   // The control is a switch now: aria-checked is the state, and the thumb
-  // follows it (squish-switch.js). No label rewriting — the name stays the
+  // follows it (squish-switch.js). No label rewriting - the name stays the
   // same, only the answer changes.
   $("replayBtn").setAttribute("aria-checked", "true");
   const step = (ts) => {

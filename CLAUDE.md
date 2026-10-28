@@ -1,4 +1,4 @@
-# F1 Session Analyzer — repo notes
+# F1 Session Analyzer - repo notes
 
 Live: https://f1-practice-session-analysis.pages.dev · Cloudflare Pages project
 `f1-practice-session-analysis`, publishing **`public/`** (`wrangler.toml`).
@@ -11,7 +11,7 @@ checks that are deliberately deferred.
 
 | Path | What it is |
 |---|---|
-| `public/` | the whole site — the only directory Pages publishes |
+| `public/` | the whole site - the only directory Pages publishes |
 | `public/index.html` | one static SPA page: hero, session controls, SEO copy, 11 result tabs, footer |
 | `public/app.js` | OpenF1 fetching, pacing/retry, telemetry math, Tabulator grids, ECharts traces, canvas maps, CSV, share hash |
 | `public/styles.css` | the site's own design tokens and layout |
@@ -28,7 +28,7 @@ checks that are deliberately deferred.
 
 `/` + in-page section anchors. `#y=<year>&m=<meeting>&s=<session>` restores an
 exact analysis (`app.js` `saveShareHash` / `loadFromHash`); Reset strips the
-hash with `replaceState`. Result tabs are UI state, not routes — do not give them
+hash with `replaceState`. Result tabs are UI state, not routes - do not give them
 hashes. `/about`, `/contact` and `/privacy` are real pages; each negotiates
 Markdown at the same URL and has a `.md` alias. Result tabs are not routes.
 

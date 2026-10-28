@@ -4,7 +4,7 @@
  * Until this batch F1 was the only site in the collection with no
  * `functions/` directory at all: it is a static app, and its one dynamic path
  * used to be nothing. The feedback box added with the redesign is the reason
- * this exists — `POST /api/feedback` has to land somewhere, and on Cloudflare
+ * this exists - `POST /api/feedback` has to land somewhere, and on Cloudflare
  * Pages that is a Pages Function, compiled from this directory beside
  * `pages_build_output_dir = "public"`.
  *

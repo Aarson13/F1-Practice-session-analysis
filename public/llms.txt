@@ -69,11 +69,11 @@ data and are not modelled. Small gaps can be sampling noise.
 
 ## Pages
 
-- [Analyzer](https://f1-practice-session-analysis.pages.dev/) — pick a session and analyze it.
+- [Analyzer](https://f1-practice-session-analysis.pages.dev/) - pick a session and analyze it.
 - [Markdown home](https://f1-practice-session-analysis.pages.dev/index.md)
-- [About](https://f1-practice-session-analysis.pages.dev/about) — method, sources and limits.
-- [Contact](https://f1-practice-session-analysis.pages.dev/contact) — corrections and bugs.
-- [Privacy](https://f1-practice-session-analysis.pages.dev/privacy) — requests and local state.
+- [About](https://f1-practice-session-analysis.pages.dev/about) - method, sources and limits.
+- [Contact](https://f1-practice-session-analysis.pages.dev/contact) - corrections and bugs.
+- [Privacy](https://f1-practice-session-analysis.pages.dev/privacy) - requests and local state.
 - [Sitemap](https://f1-practice-session-analysis.pages.dev/sitemap.xml)
 - [GitHub repository](https://github.com/Aarson13/F1-Practice-session-analysis)
 

@@ -15,8 +15,8 @@
 # that is the difference between this repository and the other seven: their
 # publish set is their repository root, so it has to be copied through
 # `tools/deploy-pages.mjs` to keep README, tools/, functions/ and .git* off the
-# host. Here the publish set is already a directory the repository shows — the
-# site moved into `public/` for exactly that reason — and it holds nothing but
+# host. Here the publish set is already a directory the repository shows - the
+# site moved into `public/` for exactly that reason - and it holds nothing but
 # site files, so there is no staging step and no build command to name.
 #
 # There is no Worker and no bundling. `wrangler deploy` is not a command this
@@ -44,7 +44,7 @@ compatibility_date = "2026-10-01"
 #   workers & pages -> f1-practice-session-analysis -> Settings -> Functions ->
 #     KV namespace bindings -> SITE_FEEDBACK -> site-feedback
 #
-# No id is committed before the dashboard binding exists — a placeholder id
+# No id is committed before the dashboard binding exists - a placeholder id
 # fails the deploy instead of the binding. Pages reads bindings from the
 # dashboard, not from this file, which is why this is a note and not a table.
 # [[kv_namespaces]]

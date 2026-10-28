@@ -1,11 +1,11 @@
 /**
- * POST /api/feedback — the analyzer's own feedback box, stored in the shared
+ * POST /api/feedback - the analyzer's own feedback box, stored in the shared
  * `site-feedback` KV namespace.
  *
  * This is the route the redesign asked for: before it, a visitor who found a
  * wrong corner speed or a broken session had no way to say so that did not
  * involve finding the repository. The site stores no F1 data by design, and
- * this does not change that — a report is a sentence about the tool, not
+ * this does not change that - a report is a sentence about the tool, not
  * session data, and it carries no telemetry.
  *
  * The endpoint is same-origin (the CSP's `connect-src 'self'` already covers
@@ -163,7 +163,7 @@ export const handler = async (event) => {
     }
   } catch (error) {
     console.error('feedback store failed:', (error && error.stack) || error);
-    return json(502, { error: 'Could not save that just now. Nothing was lost on this device — try again shortly.' });
+    return json(502, { error: 'Could not save that just now. Nothing was lost on this device - try again shortly.' });
   }
 
   return json(201, { ok: true, id });

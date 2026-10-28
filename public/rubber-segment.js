@@ -1,4 +1,4 @@
-/* Rubber Segment — a vanilla port of React Bits' Rubber Segment.
+/* Rubber Segment - a vanilla port of React Bits' Rubber Segment.
  *
  * A segmented control whose thumb does not slide: it stretches across the gap,
  * lands on the new slot and squashes into it. The React original animates a
@@ -15,8 +15,8 @@
  *     <button type="button" aria-pressed="false">Year</button>
  *   </div>
  *
- * The selected chip is read from the page — aria-checked, aria-selected,
- * aria-pressed, data-on, .active or .on — so the site stays authoritative:
+ * The selected chip is read from the page - aria-checked, aria-selected,
+ * aria-pressed, data-on, .active or .on - so the site stays authoritative:
  * click a chip, its handler updates its own state, and the thumb moves there.
  *
  * Options on the group:
@@ -37,7 +37,7 @@
  * instead of mutating its chips) replace this element, so the new one would
  * paint the thumb already seated and the stretch would never be seen. Give the
  * group a stable `data-rs-key` and the component remembers the last chip it
- * settled on under that key, then starts the next instance from there — the
+ * settled on under that key, then starts the next instance from there - the
  * thumb crosses the gap even though the DOM did not survive the click.
  *
  * No inline scripts or style attributes are needed: the geometry is written
@@ -263,7 +263,7 @@
   };
 
   /* offsetLeft is already measured from the padding edge, which is the same
-   * origin an absolutely positioned thumb's `left: 0` uses — subtracting the
+   * origin an absolutely positioned thumb's `left: 0` uses - subtracting the
    * padding here would shift the thumb by exactly that padding. */
   /* l/w are the extent along the axis the thumb travels (x for a row, y for a
    * stack); t/h are the cross-axis box the thumb has to cover. Keeping the
